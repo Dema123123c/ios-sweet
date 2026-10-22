@@ -45,9 +45,11 @@ def collect(adb, serial, output, expected_build):
         raise ValueError('expected the connected A31 in TWRP')
     output.mkdir(parents=True)
     report = {'expected_build': expected_build, 'phone_writes': False, 'sources': {}}
-    for name in ['last_kmsg', 'sec_log']:
+    sources = {'last_kmsg': '/proc/last_kmsg', 'sec_log': '/proc/sec_log',
+               'pstore_console': '/sys/fs/pstore/console-ramoops-0'}
+    for name, remote in sources.items():
         partial = output / (name + '.partial')
-        result = subprocess.run(prefix + ['pull', '/proc/' + name, str(partial)],
+        result = subprocess.run(prefix + ['pull', remote, str(partial)],
                                 capture_output=True, text=True, timeout=30)
         if result.returncode:
             report['sources'][name] = {'status': 'read_failed', 'error': result.stderr.strip()}

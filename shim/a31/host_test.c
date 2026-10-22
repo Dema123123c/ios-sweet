@@ -66,6 +66,25 @@ int main(int argc, char **argv)
            guarded[18] == 0xa5a5a5a5 && guarded[19] == 0xa5a5a5a5);
     assert(!sec_log_bind(&same, (uint8_t *)guarded + 1, 64));
     assert(!sec_log_bind(&same, guarded, 12));
-    puts("FDT bounds/reg and Samsung log ring tests PASS");
+    for (unsigned i = 0; i < 20; i++) guarded[i] = 0xa5a5a5a5;
+    struct ramoops_log prz;
+    assert(ramoops_log_bind(&prz, guarded + 2, 64));
+    assert(*prz.signature == 0x43474244 && *prz.start == 0 && *prz.size == 0);
+    for (unsigned i = 0; i < 52; i++) ramoops_log_putc(&prz, (char)i);
+    assert(*prz.start == 0 && *prz.size == 52);
+    ramoops_log_putc(&prz, 'X');
+    assert(*prz.start == 1 && *prz.size == 52 && prz.data[0] == 'X');
+    struct ramoops_log persisted;
+    assert(ramoops_log_bind(&persisted, guarded + 2, 64));
+    assert(*persisted.start == 1 && *persisted.size == 52);
+    *persisted.size = 3;
+    assert(ramoops_log_bind(&persisted, guarded + 2, 64));
+    assert(*persisted.start == 0 && *persisted.size == 0);
+    assert(guarded[0] == 0xa5a5a5a5 && guarded[1] == 0xa5a5a5a5 &&
+           guarded[18] == 0xa5a5a5a5 && guarded[19] == 0xa5a5a5a5);
+    assert(!ramoops_log_bind(&persisted, (uint8_t *)guarded + 1, 64));
+    assert(!ramoops_log_bind(&persisted, guarded, 12));
+    assert(!ramoops_log_bind(&persisted, guarded, 0x40004));
+    puts("FDT bounds/reg, Samsung LOGM and ramoops ring tests PASS");
     return 0;
 }

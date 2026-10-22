@@ -20,6 +20,10 @@ TOOL_HASHES = {
     'mkbootimg': '2a8d05d34110f66c463668f43fc812ce2e46e66459c347eaadb080271df69aa8',
     'avbtool': 'a9ec360fc5395db9b72d36c03af59ff984f4eefcc349dc32a556de7f8ed892ab',
 }
+PSTORE_PROFILE = {'mem_address': 0x4d010000, 'mem_size': 0xe0000,
+                  'console_size': 0x40000, 'record_size': 0x1000,
+                  'ftrace_size': 0x1000, 'pmsg_size': 0x10000,
+                  'mem_type': 0, 'ecc': 0}
 
 
 def sha(data):
@@ -28,6 +32,17 @@ def sha(data):
 
 class ParentBootMismatch(ValueError):
     pass
+
+
+def validate_pstore_profile(profile):
+    try:
+        values = {k: int(profile[k], 0) if isinstance(profile[k], str) else profile[k]
+                  for k in PSTORE_PROFILE}
+    except (KeyError, ValueError, TypeError) as error:
+        raise ValueError('incomplete recovery pstore profile') from error
+    if values != PSTORE_PROFILE or any(type(v) is not int for v in values.values()):
+        raise ValueError('recovery pstore layout differs from the compiled diagnostic; refusing package')
+    return values
 
 
 def validate_unlocked_stock(properties):
@@ -173,7 +188,7 @@ def package_tar(path, data):
 
 
 def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
-          unlocked_stock_properties=None, live_recovery_fdt=None):
+          unlocked_stock_properties=None, live_recovery_fdt=None, pstore_profile=None):
     live_report = None
     if unlocked_stock_properties is not None:
         if live_recovery_fdt is None:
@@ -191,6 +206,11 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
         if 'mediatek,MT6768' not in strings(nodes['/']['compatible']):
             raise ValueError('stock DTB does not identify MT6768')
     metadata = json.loads((native_dir / 'build.json').read_text())
+    checked_pstore = None
+    if metadata.get('pstore_console'):
+        if pstore_profile is None:
+            raise ValueError('this diagnostic requires a fresh --pstore-profile from recovery sysfs')
+        checked_pstore = validate_pstore_profile(json.loads(pstore_profile.read_text(encoding='utf-8')))
     raw = (native_dir / 'Image').read_bytes()
     compressed = (native_dir / 'Image.gz').read_bytes()
     if metadata['qemu'] is not False or metadata['sha256'] != sha(raw) or gzip.decompress(compressed) != raw:
@@ -267,6 +287,8 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
               'header_and_original_ramdisk_dtb_preserved': True,
               'manual_return_to_recovery_required': True,
               'source_image_manifest': metadata}
+    if checked_pstore is not None:
+        report['recovery_pstore_profile'] = checked_pstore
     (output / 'manifest.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, indent=2))
     return report
@@ -289,8 +311,11 @@ if __name__ == '__main__':
     parser.add_argument('--live-recovery-fdt', type=Path,
                         help='fresh /sys/firmware/fdt read from current TWRP, also required '
                              'for unlocked tests; rejects green or contradictory bootargs')
+    parser.add_argument('--pstore-profile', type=Path,
+                        help='fresh recovery ramoops sysfs parameter JSON; mandatory for pstore diagnostics')
     args = parser.parse_args()
     build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
           args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve(),
           args.unlocked_stock_properties.resolve() if args.unlocked_stock_properties else None,
-          args.live_recovery_fdt.resolve() if args.live_recovery_fdt else None)
+          args.live_recovery_fdt.resolve() if args.live_recovery_fdt else None,
+          args.pstore_profile.resolve() if args.pstore_profile else None)

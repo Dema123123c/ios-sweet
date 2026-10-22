@@ -8,7 +8,9 @@ static uint64_t read64(uintptr_t p) { return *(volatile uint64_t *)p; }
 static void write32(uintptr_t p, uint32_t v) { *(volatile uint32_t *)p = v; }
 #if !DIAG_QEMU
 static struct sec_log log_ring;
+static struct ramoops_log pstore_ring;
 static int log_ready;
+static int pstore_ready;
 #endif
 static uint64_t frequency;
 static volatile uint32_t timer_irqs, other_irqs;
@@ -21,6 +23,7 @@ static void putc(char c)
     write32(0x09000000, (uint32_t)(unsigned char)c);
 #else
     if (log_ready) sec_log_putc(&log_ring, c);
+    if (pstore_ready) ramoops_log_putc(&pstore_ring, c);
 #endif
 }
 static void text(const char *s) { while (*s) putc(*s++); BARRIER(); }
@@ -56,6 +59,27 @@ static int wait_clear(uintptr_t address, uint32_t mask)
     while (read32(address) & mask) if (now() - start > frequency) return 0;
     return 1;
 }
+
+#if !DIAG_QEMU
+static void stop_platform_watchdog(const struct dt_view *dt)
+{
+    uint32_t node;
+    uint64_t base, size;
+    if (!dt_compatible(dt, "mediatek,toprgu", &node) ||
+        !dt_reg(dt, node, 0, &base, &size) || base != 0x10007000 || size != 0x1000)
+        fail("watchdog reservation mismatch");
+    uint32_t mode = read32(base);
+    field("WDT_MODE_BEFORE=", mode);
+    field("WDT_STATUS_BEFORE=", read32(base + 0x0c));
+    /* Same keyed EN-bit clear as this A31 kernel's mtk_wdt_stop(). */
+    if (mode & 1) write32(base, (mode & ~1U) | 0x22000000U);
+    BARRIER();
+    uint32_t after = read32(base);
+    field("WDT_MODE_AFTER=", after);
+    if (after & 1) fail("watchdog disable did not stick");
+    text("WDT OFF\n");
+}
+#endif
 
 static uint64_t l1[2048] __attribute__((aligned(16384)));
 static uint64_t identity[2048] __attribute__((aligned(16384)));
@@ -211,12 +235,25 @@ void diag_main(uintptr_t fdt_address, uint64_t entry_el)
         (fdt_address < base + size && fdt_address + dt.size > base) ||
         !sec_log_bind(&log_ring, (void *)(uintptr_t)base, size)) finish(0);
     log_ready = 1;
+    if (!dt_compatible(&dt, "mediatek,pstore", &node) ||
+        !dt_reg(&dt, node, 0, &base, &size) ||
+        base != 0x4d010000 || size != 0xe0000 ||
+        ((uintptr_t)_head < base + size && (uintptr_t)_end > base) ||
+        (fdt_address < base + size && fdt_address + dt.size > base))
+        fail("PSTORE reservation mismatch");
+    /* Measured recovery layout: dump, console, bconsole, ftrace, pmsg; ECC=0. */
+    if (!ramoops_log_bind(&pstore_ring, (void *)(uintptr_t)(base + 0x4f000), 0x40000))
+        fail("PSTORE console bounds");
+    pstore_ready = 1;
 #endif
     text("\n[A31-DIAG v1] BEGIN\n");
     text("BUILD=" DIAG_BUILD_ID "\n");
     field("ENTRY_EL=", entry_el); field("CURRENT_EL=", READ(CurrentEL) >> 2);
     field("MIDR=", READ(midr_el1)); field("MPIDR=", READ(mpidr_el1));
     field("SCTLR_EL1=", READ(sctlr_el1)); field("FDT=", fdt_address);
+#if !DIAG_QEMU
+    stop_platform_watchdog(&dt);
+#endif
     frequency = READ(cntfrq_el0); field("CNTFRQ=", frequency);
     if (frequency < 1000000 || frequency > 1000000000) fail("timer frequency");
     /* Device-type lookup includes unit-addressed memory nodes on QEMU. */

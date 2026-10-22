@@ -20,6 +20,10 @@ def build(out, cc='clang', qemu=False):
     try:
         build_id = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'],
                                            text=True, stderr=subprocess.DEVNULL).strip()
+        dirty = subprocess.run(['git', '-C', str(source), 'diff', '--quiet', 'HEAD', '--', '.'],
+                               stderr=subprocess.DEVNULL).returncode
+        if dirty:
+            build_id += '-dirty'
     except (FileNotFoundError, subprocess.CalledProcessError):
         build_id = 'unversioned'
     objcopy = tools / ('llvm-objcopy' + suffix)
@@ -65,6 +69,11 @@ def build(out, cc='clang', qemu=False):
                 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
                 'native_boot_tested': False, 'build_id': build_id, 'text_offset': '0x80000',
                 'image_flags': image_flags}
+    if not qemu:
+        metadata['pstore_console'] = {'base': '0x4d05f000', 'bytes': 0x40000,
+                                     'recovery_layout_profile_required': True}
+        metadata['watchdog'] = {'base': '0x10007000', 'action': 'keyed clear of EN bit; readback required',
+                                'hardware_tested': False}
     (out / 'build.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(metadata, indent=2))
     return image

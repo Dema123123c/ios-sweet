@@ -10,7 +10,26 @@ The native build accepts the captured MT6768 platform and the Samsung
 sec-log reserved region at 0x46c00000 / 2 MiB. It appends to the LOGM ring
 described in Samsung's `drivers/samsung/misc/sec_log.c`; Linux normally
 copies the old ring to `/proc/last_kmsg`. Persistence across this phone's
-bootloader/recovery sequence remains untested. No framebuffer writes or
+bootloader/recovery sequence has not yielded a diagnostic session. On the
+latest recovery boot, `last_kmsg` instead exports LK logs, so it cannot be
+assumed to contain the previous Linux/kernel log.
+
+The updated native build additionally appends Linux persistent-RAM console
+records in the observed pstore reservation: 0x4d010000 / 0xe0000. The measured
+recovery layout has 4 KiB records, 256 KiB console, a second 256 KiB bconsole,
+4 KiB ftrace, 64 KiB pmsg and ECC disabled; the console starts at 0x4d05f000.
+It uses the DBGC header (signature/start/size), validates the reserved region
+and rejects overlap with the shim or FDT. The packager requires the matching
+fresh recovery sysfs profile. Collection includes
+`/sys/fs/pstore/console-ramoops-0`; actual native persistence is untested.
+
+After logging entry, the native build checks the `mediatek,toprgu` FDT range
+at 0x10007000 / 4 KiB, records watchdog MODE/STATUS, and clears only MODE.EN
+using key 0x22000000, as the A31 kernel's `mtk_wdt_stop()` does. It verifies
+EN stayed clear. Watchdog reset is a hypothesis, not a measured explanation
+of the earlier bootloop. The QEMU build does not access these registers.
+
+No framebuffer writes or
 Qualcomm restart/USB/UFS register accesses are included.
 
 ```sh
@@ -32,6 +51,9 @@ References:
 - [AArch64 boot protocol](https://www.kernel.org/doc/html/latest/arch/arm64/booting.html)
 - [Samsung log layout](https://github.com/Galaxy-MT6768/android_kernel_samsung_mt6768/blob/lineage-19.1/drivers/samsung/misc/sec_log.c)
 - [Samsung log addresses and magic](https://github.com/Galaxy-MT6768/android_kernel_samsung_mt6768/blob/lineage-19.1/include/linux/sec_debug.h)
+- [A31 watchdog driver](https://github.com/Galaxy-MT6768/android_kernel_samsung_mt6768/blob/48d7bfb222e1e722b9c77f78beef056d0011f4cc/drivers/watchdog/mtk_wdt.c)
+- [Samsung ramoops layout](https://github.com/Galaxy-MT6768/android_kernel_samsung_mt6768/blob/lineage-19.1/fs/pstore/ram.c)
+- [Persistent-RAM header](https://github.com/Galaxy-MT6768/android_kernel_samsung_mt6768/blob/lineage-19.1/fs/pstore/ram_core.c)
 
 No device dump, stock DTB, original boot image, or per-device identifier is
 included here. A phone boot package and a verified restore package must be

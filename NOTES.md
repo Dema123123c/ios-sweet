@@ -8,6 +8,37 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CURRENT: no native diagnostic is installed; original BOOT restored,
+  TWRP RECOVERY retained. Sent ordinary adb reboot recovery ONLY for a
+  RAM-log persistence probe, NOT Android. Before reboot wrote unique
+  A31-PSTORE-PROBE-20261022-logger-v2 through world-writable /dev/pmsg0
+  (debug reserved RAM, no phone partition writes). Private probe state
+  research/a31-pstore-persistence-probe/probe.json. Await ADB recovery;
+  then adb pull /sys/fs/pstore and search the PMSG record for marker.
+  This tests whether the existing Linux recovery backend survives reboot
+  BEFORE spending another native flash. Android remains not the goal.
+- Implemented candidate dual logger in native shim: existing Samsung LOGM
+  plus Linux DBGC ramoops console, validated FDT mediatek,pstore region
+  0x4d010000+0xe0000, console at +0x4f000/0x40000, rejects image/FDT
+  overlap. Ring keeps existing valid contents across boots, resets malformed
+  header, bounded counters/wrap; updated C host tests guard bounds/persistence.
+  Collector additionally reads /sys/fs/pstore/console-ramoops-0.
+- Native candidate now checks toprgu FDT base 10007000/size1000, logs MODE
+  and STATUS, clears ONLY MODE.EN using key 22000000, read-verifies EN off.
+  Matches pinned A31 kernel mtk_wdt_stop, source commit
+  48d7bfb222e1e722b9c77f78beef056d0011f4cc drivers/watchdog/mtk_wdt.c.
+  No software reset/non-reset/PMIC register writes. WDT remains hypothesis.
+- Build metadata declares pstore and watchdog actions; dirty source builds
+  marked -dirty. Packager requires fresh matching --pstore-profile for
+  new pstore images (layout and ECC=0); wrong layout rejects before package.
+  35 Python checks pass. C FDT/LOGM/ramoops host tests ran successfully
+  on real A31 as an ordinary Linux EL0 static NDK/API31 program; no native
+  entry or MMU result implied. Local bare-metal compile passes, but this
+  uncommitted-source candidate is NOT a reviewed flash artifact.
+- New source needs clean-commit CI (C sanitizers, native build, EL1/EL2
+  QEMU), then private BOOT packaging with matching live orange FDT, current
+  unchanged parent and measured pstore profile. NO NEW NATIVE FLASH YET.
+  Preserve exact stock restore and TWRP. Do not repeat old 4d0f diagnostic.
 - CURRENT SAFE STATE: warning-gated diagnostic test produced a USER-REPORTED
   bootloop, but physical TWRP entry worked. New logs
   research/a31-warning-gated-logs contain NO diagnostic session. Exact

@@ -23,3 +23,11 @@ struct sec_log {
 };
 int sec_log_bind(struct sec_log *log, void *memory, size_t size);
 void sec_log_putc(struct sec_log *log, char c);
+
+struct ramoops_log {
+    volatile uint32_t *signature, *start, *size;
+    volatile uint8_t *data;
+    uint32_t capacity;
+};
+int ramoops_log_bind(struct ramoops_log *log, void *memory, size_t size);
+void ramoops_log_putc(struct ramoops_log *log, char c);

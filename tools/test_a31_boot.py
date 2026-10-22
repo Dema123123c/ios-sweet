@@ -3,7 +3,7 @@ import hashlib
 import unittest
 
 from mka31diag import (dtbs, unpack, require_parent_digest, check_boot_contract,
-                      validate_live_unlocked_fdt)
+                      validate_live_unlocked_fdt, validate_pstore_profile, PSTORE_PROFILE)
 from test_a31 import fixture
 
 
@@ -29,6 +29,19 @@ def boot():
 
 
 class A31BootTests(unittest.TestCase):
+    def test_pstore_profile_accepts_recovery_sysfs_decimal_strings(self):
+        self.assertEqual(validate_pstore_profile({k: str(v) for k, v in PSTORE_PROFILE.items()}),
+                         PSTORE_PROFILE)
+
+    def test_pstore_profile_rejects_changed_ecc_or_memory_layout(self):
+        for key in ['ecc', 'mem_address', 'console_size', 'mem_size', 'ftrace_size']:
+            profile = dict(PSTORE_PROFILE)
+            profile[key] += 1
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                validate_pstore_profile(profile)
+        with self.assertRaises(ValueError):
+            validate_pstore_profile({'ecc': '0'})
+
     def test_live_recovery_requires_unlocked_and_orange(self):
         data = fixture(b'androidboot.vbmeta.device_state=unlocked '
                        b'androidboot.verifiedbootstate=orange\0')

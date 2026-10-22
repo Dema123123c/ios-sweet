@@ -187,3 +187,31 @@ void sec_log_putc(struct sec_log *log, char c)
     if (p == log->capacity) { p = 0; *log->head = 1; }
     *log->position = p;
 }
+
+int ramoops_log_bind(struct ramoops_log *log, void *memory, size_t size)
+{
+    if (!memory || ((uintptr_t)memory & 3) || size < 16 || size > 0x40000 ||
+        (size & 3)) return 0;
+    log->signature = memory;
+    log->start = log->signature + 1;
+    log->size = log->signature + 2;
+    log->data = (volatile uint8_t *)(log->signature + 3);
+    log->capacity = (uint32_t)size - 12;
+    uint32_t start = *log->start, used = *log->size;
+    if (*log->signature != 0x43474244 || start >= log->capacity ||
+        used > log->capacity || (used < log->capacity && start != used)) {
+        *log->start = 0;
+        *log->size = 0;
+        *log->signature = 0x43474244;
+    }
+    return 1;
+}
+
+void ramoops_log_putc(struct ramoops_log *log, char c)
+{
+    uint32_t start = *log->start;
+    log->data[start++] = (uint8_t)c;
+    if (start == log->capacity) start = 0;
+    *log->start = start;
+    if (*log->size < log->capacity) ++*log->size;
+}
