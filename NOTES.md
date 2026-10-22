@@ -8,6 +8,19 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- Latest user photo confirms normal Downloading screen (no AVB error),
+  Korean/English instructions and VolumeDown+Side >7s cancel/restart.
+  OEM LOCK/KG/RMM fields are NOT shown in this UI. Do not ask user to
+  transcribe nonexistent fields. Stock Android's locked properties above
+  remain the measured state. No phone writes since factory RECOVERY.
+- Pending explicit user question: approve full bootloader unlock on this
+  exact SM-A315F, with ANOTHER DATA WIPE. No unlock instruction/button
+  confirmation has been executed. User must perform physical confirmation.
+  Existing approvals for BOOT/RECOVERY and experimental-phone context
+  are not treated as this new wipe approval. If approved, enter the
+  Warning screen first and inspect its actual unlock option before
+  directing any long VolUp press. Verify resulting stock Android state
+  flash.locked=0/vbmeta.device_state=unlocked before further custom tests.
 - CRITICAL CORRECTION FROM STOCK ANDROID: user finished setup and reenabled
   USB debugging. Same A31/firmware verified over authorized ADB and
   sys.boot_completed=1. Canonical stock properties show ro.boot.flash.locked=1,
