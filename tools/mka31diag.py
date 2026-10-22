@@ -26,6 +26,21 @@ def sha(data):
     return hashlib.sha256(data).hexdigest()
 
 
+class ParentBootMismatch(ValueError):
+    pass
+
+
+def validate_unlocked_stock(properties):
+    required = {'ro.product.model': 'SM-A315F', 'ro.product.device': 'a31',
+                'ro.build.PDA': 'A315FXXU5DXJ1', 'sys.boot_completed': '1',
+                'ro.boot.flash.locked': '0',
+                'ro.boot.vbmeta.device_state': 'unlocked',
+                'ro.boot.verifiedbootstate': 'orange'}
+    if not isinstance(properties, dict) or any(properties.get(k) != v for k, v in required.items()):
+        raise ValueError('requires fresh stock Android A31 properties confirming unlocked/orange')
+    return required
+
+
 def require_parent_digest(data, size, algorithm, salt, expected):
     if not 0 < size <= len(data):
         raise ValueError('parent BOOT hash range exceeds the candidate image')
@@ -33,11 +48,28 @@ def require_parent_digest(data, size, algorithm, salt, expected):
         raise ValueError('unsupported parent BOOT hash descriptor')
     actual = hashlib.sha256(salt + data[:size]).digest()
     if actual != expected:
-        raise ValueError('candidate BOOT does not match parent vbmeta; '
-                         'its own AVB footer does not satisfy the parent hash')
+        raise ParentBootMismatch('candidate BOOT does not match parent vbmeta; '
+                                 'its own AVB footer does not satisfy the parent hash')
 
 
-def preflight_parent(avbtool, parent_path, data):
+def check_boot_contract(data, size, algorithm, salt, expected, unlocked_stock=None):
+    evidence = validate_unlocked_stock(unlocked_stock) if unlocked_stock is not None else None
+    try:
+        require_parent_digest(data, size, algorithm, salt, expected)
+    except ParentBootMismatch:
+        if evidence is None:
+            raise
+        # AVB permits verification errors when unlocked; Samsung acceptance still needs a real boot.
+        return {'boot_digest_matches': False,
+                'boot_contract': 'parent mismatch; explicitly testing unlocked AVB policy',
+                'unlocked_stock_properties': evidence}
+    return {'boot_digest_matches': True,
+            'boot_contract': 'candidate matches supplied parent BOOT digest'}
+
+
+def preflight_parent(avbtool, parent_path, data, unlocked_stock=None):
+    if unlocked_stock is not None:
+        validate_unlocked_stock(unlocked_stock)
     if sha(avbtool.read_bytes()) != TOOL_HASHES['avbtool']:
         raise ValueError('parent verification requires the pinned AOSP avbtool')
     spec = importlib.util.spec_from_file_location('a31_parent_avb', avbtool)
@@ -65,9 +97,8 @@ def preflight_parent(avbtool, parent_path, data):
         if len(hashes) != 1 or chains:
             raise ValueError('unsupported parent BOOT contract; refusing a flash package')
         descriptor = hashes[0]
-        require_parent_digest(data, descriptor.image_size, descriptor.hash_algorithm,
-                              descriptor.salt, descriptor.digest)
-        report['boot_contract'] = 'candidate matches supplied parent BOOT digest'
+        report.update(check_boot_contract(data, descriptor.image_size, descriptor.hash_algorithm,
+                                          descriptor.salt, descriptor.digest, unlocked_stock))
         return report
     finally:
         image._image.close()
@@ -125,7 +156,8 @@ def package_tar(path, data):
             raise ValueError('Odin package round-trip failed')
 
 
-def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta):
+def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
+          unlocked_stock_properties=None):
     stock = stock_path.read_bytes()
     if sha(stock) != STOCK_SHA256 or len(stock) != 33554432:
         raise ValueError('stock BOOT is not the twice-read A315FXXU5DXJ1 backup; refusing template')
@@ -178,7 +210,9 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta):
     subprocess.run([sys.executable, str(avbtool), 'verify_image', '--image', str(image)], check=True)
     diagnostic = image.read_bytes()
     try:
-        parent_report = preflight_parent(avbtool, parent_vbmeta, diagnostic)
+        properties = (json.loads(unlocked_stock_properties.read_text(encoding='utf-8'))
+                      if unlocked_stock_properties is not None else None)
+        parent_report = preflight_parent(avbtool, parent_vbmeta, diagnostic, properties)
     except Exception:
         image.unlink()
         (output / 'REJECTED.txt').write_text(
@@ -225,6 +259,11 @@ if __name__ == '__main__':
     parser.add_argument('--parent-vbmeta', type=Path, required=True,
                         help='fresh unchanged top-level vbmeta read from this phone; '
                              'requires openssl on PATH for signed metadata')
+    parser.add_argument('--unlocked-stock-properties', type=Path,
+                        help='explicit opt-in to testing unlocked AVB policy: fresh stock Android '
+                             'getprop JSON from this A31 (unlocked/orange). This file is operator '
+                             'evidence, not attestation or proof of Samsung boot acceptance')
     args = parser.parse_args()
     build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
-          args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve())
+          args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve(),
+          args.unlocked_stock_properties.resolve() if args.unlocked_stock_properties else None)

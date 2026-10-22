@@ -8,6 +8,41 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CURRENT TWRP BOOT VERIFIED over authorized ADB: a31/mt6768, version
+  3.7.0_11-1. Fresh read-only collection research/a31-unlocked-capture-1
+  has TWO independent matching reads of BOOT, RECOVERY, dtbo and both
+  vbmetas. BOOT is exact original af9ef426...ba176f1; RECOVERY matches
+  user-flashed d8a89533...bbcd890. Both vbmetas unchanged from original
+  capture (top-level e4ef1872...201c73, flags 0). Fresh last_kmsg/sec_log
+  baseline has NO sessions for diagnostic build 4279c64e605cf5c5de4799f9962d3e6756b5f6eb.
+- Added explicit mka31diag --unlocked-stock-properties mode: validates
+  stock Android identity/firmware/boot completion and canonical unlocked/orange,
+  still verifies parent signature and contract structure/range. Only actual
+  digest mismatch may use this mode; reported boot_digest_matches=false and
+  bootloader_acceptance_verified=false. No generic ignore-errors switch.
+  Stock JSON is operator evidence, not attestation; default remains strict.
+  30 Python checks pass, including locked/green/wrong-device/evidence-only
+  rejection and malformed descriptor/range rejection in unlocked mode.
+- Full packaging integration succeeded into private
+  outputs/a31-diagnostic-unlocked-v2 using FRESH twice-read original BOOT
+  and vbmeta plus freshly measured stock unlocked properties. Image bytes
+  are EXACTLY prior-approved diagnostic SHA256 4d0f5a36...18485cf, unchanged
+  native build 4279c64 (previous native/QEMU CI passes remain applicable).
+  Restore BOOT and both round-trip-verified AP TARs included. Explicitly
+  reports original parent hash mismatch and untested Samsung acceptance.
+  Full DEFAULT packaging rejection integration also passes: no candidate
+  boot.img and no TAR remain. V1 remains blocked in its old locked context.
+- User had Windows desktop blackness; no phone flash was performed during
+  troubleshooting. Restarted Explorer; virtual-memory exhaustion events
+  observed, paging disabled. Attempt to enable automatic paging DENIED by
+  Windows (no setting changed, no reboot). User says fixed, continue.
+  Computer-use UI input stopped; phone remains TWRP. No outstanding
+  Windows repair action or temporary power setting.
+- About to perform already-authorized SAME diagnostic BOOT test under newly
+  verified unlock. Target rechecked /dev/block/mmcblk0p35, 65536 sectors.
+  Plan: ADB sync write BOOT only, sync, full raw readback/hash, boot normal,
+  user manual return to TWRP, recover matching-session logs, restore stock
+  BOOT with full readback. No vbmeta/TEE1/bootloader/Data write. No XNU handoff.
 - USER manually selected and flashed TWRP in Patched Odin. IMPORTANT: the
   actually selected archive was Downloads/TWRP_Galaxy_A31_7_1.2.2.tar,
   NOT the prepared package or Downloads/TWRP.tar. It contains ONLY

@@ -2,7 +2,7 @@ import struct
 import hashlib
 import unittest
 
-from mka31diag import dtbs, unpack, require_parent_digest
+from mka31diag import dtbs, unpack, require_parent_digest, check_boot_contract
 from test_a31 import fixture
 
 
@@ -28,6 +28,47 @@ def boot():
 
 
 class A31BootTests(unittest.TestCase):
+    def unlocked_properties(self):
+        return {'ro.product.model': 'SM-A315F', 'ro.product.device': 'a31',
+                'ro.build.PDA': 'A315FXXU5DXJ1', 'sys.boot_completed': '1',
+                'ro.boot.flash.locked': '0', 'ro.boot.vbmeta.device_state': 'unlocked',
+                'ro.boot.verifiedbootstate': 'orange'}
+
+    def test_parent_mismatch_remains_fatal_by_default(self):
+        with self.assertRaisesRegex(ValueError, 'does not match parent'):
+            check_boot_contract(b'modified boot', 13, 'sha256', b'', bytes(32))
+
+    def test_unlocked_policy_reports_mismatch_without_claiming_parent_match(self):
+        result = check_boot_contract(b'modified boot', 13, 'sha256', b'', bytes(32),
+                                     self.unlocked_properties())
+        self.assertFalse(result['boot_digest_matches'])
+        self.assertIn('explicitly testing', result['boot_contract'])
+
+    def test_unlocked_policy_rejects_locked_or_conflicting_stock_evidence(self):
+        for key, value in [('ro.boot.flash.locked', '1'),
+                           ('ro.boot.vbmeta.device_state', 'locked'),
+                           ('ro.boot.verifiedbootstate', 'green'),
+                           ('sys.boot_completed', '0'),
+                           ('ro.product.device', 'sweet'),
+                           ('ro.product.model', 'SM-A315G'),
+                           ('ro.build.PDA', 'different')]:
+            with self.subTest(key=key):
+                evidence = self.unlocked_properties()
+                evidence[key] = value
+                with self.assertRaisesRegex(ValueError, 'stock Android A31'):
+                    check_boot_contract(b'boot', 4, 'sha256', b'', bytes(32), evidence)
+
+    def test_oem_permission_alone_does_not_enable_unlocked_policy(self):
+        with self.assertRaisesRegex(ValueError, 'stock Android A31'):
+            check_boot_contract(b'boot', 4, 'sha256', b'', bytes(32),
+                                {'sys.oem_unlock_allowed': '1'})
+
+    def test_unlocked_policy_does_not_accept_bad_range_or_algorithm(self):
+        for size, algorithm in [(5, 'sha256'), (4, 'sha512')]:
+            with self.subTest(size=size, algorithm=algorithm), self.assertRaises(ValueError):
+                check_boot_contract(b'boot', size, algorithm, b'', bytes(32),
+                                    self.unlocked_properties())
+
     def test_parent_hash_accepts_exact_signed_range(self):
         salt = b'salt'
         data = b'original boot' + b'unsigned footer outside signed range'
