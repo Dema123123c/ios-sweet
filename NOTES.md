@@ -8,6 +8,13 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- USER CONFIRMED physical Unlock bootloader confirmation and that the
+  resulting factory reset started. This is new progress after the KG
+  Checking transition and visible enabled OEM control. Actual post-reset
+  lock state is NOT yet measured: adb devices currently empty. Await
+  initial setup with Internet, USB debugging reenabled, and PC RSA approval;
+  then verify flash.locked=0 / vbmeta.device_state=unlocked on the same A31.
+  Do not infer native diagnostic success or flash another image yet.
 - VERIFIED NEW PROGRESS: ordinary stock Android reboot completed; still
   flash.locked=1 / locked / green. After reboot, developer Settings now
   explicitly shows "Заводская разблокировка" with summary "Разрешить
