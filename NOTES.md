@@ -8,6 +8,28 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- Latest approved unlock attempt from fully powered-off state again went
+  directly to Downloading with NO Unlock confirmation. Do not repeat the
+  same button loop without a new finding. User returned to Android; ADB
+  is authorized and stock properties STILL locked/green, OEM allowed=1.
+- Added read-only tools/A31OemState.java, compiled javac --release 8 and
+  Android SDK 36 d8 --min-api 31. Ran 1,610-byte DEX JAR via app_process
+  as shell (no APK installation, no setters). All five OEM service reads
+  returned SecurityException (missing MANAGE/READ OEM permissions); this
+  provides NO carrier/user lock conclusion. Private result:
+  research/a31-oem-probe/result.txt. No permission bypass attempted.
+- Tried opening developer settings and capturing its UI read-only. Phone
+  was on AOD/keyguard; after wake still keyguard, with Airplane mode text.
+  No OEM setting inspected or changed. User now asked to unlock screen
+  and leave it awake, connect Wi-Fi if absent, without toggling OEM yet.
+  Internet connectivity and KG/RMM state are NOT established.
+- Primary research: AOSP Android 12 IOemLockService aidl (saved privately
+  research/IOemLockService-android12.aidl) defines the named read methods;
+  reflection uses names, not guessed Binder transaction codes. New A31
+  firsthand Linux reference cloned privately to
+  research/a31-postmarket-reference from Sabslgs/galaxy-a31-postmarketos;
+  its author assumes already unlocked and has no unlock failure solution.
+  Do not take its optional vbmeta patch discussion as user approval.
 - Latest user returned to Android/settings, fixed ADB and asked to retry.
   Same stock A31/firmware and completed boot verified. Actual fresh values
   STILL flash.locked=1, vbmeta.device_state=locked, verifiedbootstate=green,
