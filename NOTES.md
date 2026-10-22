@@ -23,9 +23,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 - A31 requires MediaTek MSDC/eMMC, command-mode display and Imagis input
   drivers. The SWEET shim is still Qualcomm-specific and MUST NOT be used.
 - Next: a macOS/Xcode build of the initial A31 target, then a Samsung
-  shim and diagnostic output. No GitHub credentials or macOS host are
-  configured here. The user has not authorized public publication of
-  device dumps (keep them private and out of Git).
+  shim and diagnostic output. User authorized a GitHub Actions build;
+  public fork https://github.com/Dema123123c/ios-sweet was created in the
+  user's signed-in browser. Source branch is locally `a31-bringup`, first
+  implementation commit c64264c. GitHub CLI 2.103.0 is checksum-verified
+  in ignored `research/gh-cli/bin/gh.exe`; browser authorization is pending.
+  No source push or CI run yet. Workflow now saves the build log, runs
+  the eight host tests for A31 and requires Xcode 15 explicitly. The
+  macos-14 image has an announced 2026-11-02 retirement; future builds
+  need a compatible runner or a verified toolchain update.
+  The user has not authorized public publication of device dumps
+  (keep them private and out of Git).
 
 The handoffs below belong to the original Redmi work; their destructive
 operation approvals do not authorize changes to the Samsung phone.

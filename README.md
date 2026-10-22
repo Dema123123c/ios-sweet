@@ -1,5 +1,10 @@
 # ios-sweet
 
+> **Galaxy A31 fork:** the `a31-bringup` branch contains an unfinished
+> SM-A315F / MT6768 target. No A31 XNU boot or working iOS build is confirmed.
+> See [A31 status and build instructions](docs/A31.md). The Redmi hardware
+> results and flashing commands below do not apply to the Samsung phone.
+
 **Apple's iOS 16 running on a Redmi Note 10 Pro.**
 
 This project ports Apple's open-source XNU kernel (xnu-8796, the iOS 16 generation) to the Xiaomi Redmi Note 10 Pro (`sweet`, Qualcomm SM7150 / Snapdragon 732G). On top of it runs the **unmodified iOS 16.7.16 (20H392) userland of the iPhone X**: launchd, the system daemons, backboardd, SpringBoard and the stock apps.

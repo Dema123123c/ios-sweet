@@ -45,6 +45,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check A31 host tools
+        if: env.MACHINE_CONFIG == 'A31'
+        run: python3 -m unittest discover -s tools -p test_a31.py -v
+
       - name: Fetch build script
         run: |
           git init -q dxb
@@ -65,7 +69,11 @@ jobs:
           sudo chmod +x /usr/local/bin/xcodes
           sw_vers
           ls -d /Applications/Xcode*.app
-          XC=$(ls -d /Applications/Xcode_*.app | sort -V | head -1)
+          XC=$(find /Applications -maxdepth 1 -name 'Xcode_15*.app' | sort -V | head -1)
+          if [ -z "$XC" ]; then
+            echo '::error::xnu-8796 requires the Xcode 15 iig ABI; no Xcode 15 installation found.'
+            exit 1
+          fi
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
           sudo xcode-select -s "$XC"
           xcodebuild -version
@@ -76,7 +84,17 @@ jobs:
         env:
           # keep going after errors so one run reports every compile failure
           MAKEFLAGS: ${{ inputs.keep_going == 'false' && '' || '-k' }}
-        run: bash build.sh
+        run: |
+          set -o pipefail
+          bash build.sh 2>&1 | tee "$GITHUB_WORKSPACE/xnu-build.log"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xnu-build-log-${{ env.MACHINE_CONFIG }}
+          path: xnu-build.log
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Package build tree for local compiles
         if: always()
