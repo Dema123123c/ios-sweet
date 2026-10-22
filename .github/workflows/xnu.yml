@@ -10,7 +10,11 @@ on:
         description: RELEASE / DEVELOPMENT / DEBUG
         default: DEVELOPMENT
       machine_config:
-        description: xnu MACHINE_CONFIG
+        description: xnu target (A31 is initial headless bring-up, no phone drivers)
+        type: choice
+        options:
+          - SWEET
+          - A31
         default: SWEET
       keep_going:
         description: make -k (collect all compile errors in one run)

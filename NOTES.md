@@ -1,5 +1,35 @@
 # iOS 16 on sweet (Redmi Note 10 Pro, SM7150) - working notes
 
+## A31 handoff, 2026-10-22 (separate phone and port)
+
+User requested a native ios-sweet port to Samsung Galaxy A31; no existing
+A31 XNU port was supplied. Do not confuse the working Linux TWRP kernel
+with a port of XNU. Scope and measured results are in `docs/A31.md`.
+
+- Target confirmed over ADB: SM-A315F, MT6768, Android 12, A315FXXU5DXJ1,
+  unlocked. User explicitly approved installing `Downloads/TWRP.tar` in
+  RECOVERY. Odin 3.14.1 patched reported PASS; TWRP 3.7.1_12-1 boots.
+- Current phone state at this milestone: TWRP, ordinary ADB connected.
+  Shell is uid 2000 even though sync runs as root; use adb pull, not
+  exec-out cat, for protected files. No userdata formatting performed.
+- Private, ignored snapshot: `research/a31-capture-1/`; independent reads
+  verified live.dtb and boot/recovery/dtbo/vbmeta/vbmeta_samsung/config.gz.
+  Original boot.img SHA256 is
+  af9ef4265e3d15bb0cc3ff8c0b968eeb6da0253db305e37908aa649cfba176f1.
+- New source: patch 0082, A31 build option, ADB/FDT/ADT helpers and an
+  executable CPU diagnostic. Eight host tests pass; A31 header check and
+  native Linux CPU probe compile/run. No full XNU build, CI run or XNU
+  boot on this phone. Do not represent these checks as a working iOS port.
+- A31 requires MediaTek MSDC/eMMC, command-mode display and Imagis input
+  drivers. The SWEET shim is still Qualcomm-specific and MUST NOT be used.
+- Next: a macOS/Xcode build of the initial A31 target, then a Samsung
+  shim and diagnostic output. No GitHub credentials or macOS host are
+  configured here. The user has not authorized public publication of
+  device dumps (keep them private and out of Git).
+
+The handoffs below belong to the original Redmi work; their destructive
+operation approvals do not authorize changes to the Samsung phone.
+
 ## Agent handoff / active work (2026-10-15, latest)
 
 ### >>> UPDATE 2026-10-18 (read first, then the 10-17 handoff below) <<<
