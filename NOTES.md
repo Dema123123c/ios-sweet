@@ -104,6 +104,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   Do not flash or disable other partitions to work around it. User asked
   again for the actual result of the known TWRP button sequence; if it
   cannot boot, use Download Mode/Odin to restore the exact original BOOT.
+- User tried the known TWRP sequence and again saw "Partitions: tee1".
+  Asked user to enter Download Mode (disconnect USB; Power+VolDown until
+  black; release Power, hold BOTH volume keys and connect USB; SHORT
+  VolUp at warning). No Android/ADB or Samsung download COM device yet.
+  Odin AP now contains ONLY ../../outputs/a31-diagnostic-v1/
+  a31-original-boot-restore.tar (inner boot.img size/hash reverified).
+  BL/CP/CSC/USERDATA empty; Auto Reboot, Nand Erase, Re-Partition and
+  Flash Lock all OFF, F.Reset Time ON. Start has NOT been pressed.
+  Existing green PASS is stale from the earlier RECOVERY flash, NOT a
+  restore result. Wait for this same A31 to enter Downloading/COM before
+  starting the approved stock BOOT restore. Then verify the actual new
+  boot.img transfer/PASS and arrange a TWRP boot/readback if possible.
 - NEXT PRIORITY: restore the original BOOT. If TWRP returns, first read
   logs before another reboot, restore original BOOT under the approved
   sequence, and verify its full readback hash. Diagnostic
