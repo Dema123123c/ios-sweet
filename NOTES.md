@@ -75,9 +75,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   reconstructs the ring and checks the source build ID. Pre-test baseline
   research/a31-diag-baseline-4279c64 has no matching session. Expected ID:
   4279c64e605cf5c5de4799f9962d3e6756b5f6eb.
-- NEXT REQUIRES USER APPROVAL: write the concrete diagnostic BOOT, boot
-  it, return to intact TWRP using buttons, read logs, restore the original
-  BOOT and verify its hash. Ask before each partition write. Diagnostic
+- User approved the concrete diagnostic/restore sequence after the explicit
+  image/partition question: "выбирай что надо", then "ну если надо тогда делай".
+  A fresh full BOOT backup matched af9ef426... before writing. ADB sync
+  wrote ONLY /dev/block/mmcblk0p35 with the diagnostic image; sync and a
+  full 33,554,432-byte pull/readback matched 4d0f5a36...18485cf. Original
+  backup: research/a31-before-diagnostic-approved.img; diagnostic readback:
+  research/a31-diagnostic-written-readback.img (private/ignored).
+  Current state: diagnostic BOOT verified, still in TWRP, not booted yet.
+- NEXT: boot diagnostic once, return to intact TWRP using buttons, read
+  logs before another reboot, restore original BOOT under the approved
+  sequence, and verify its full readback hash. Diagnostic
   halts and has no display/USB or XNU handoff; a black/logo screen or
   firmware watchdog restart is possible. Preserve Data, vbmeta, RECOVERY,
   bootloaders and partition layout.
