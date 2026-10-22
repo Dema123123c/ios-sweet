@@ -21,7 +21,11 @@ recovery layout has 4 KiB records, 256 KiB console, a second 256 KiB bconsole,
 It uses the DBGC header (signature/start/size), validates the reserved region
 and rejects overlap with the shim or FDT. The packager requires the matching
 fresh recovery sysfs profile. Collection includes
-`/sys/fs/pstore/console-ramoops-0`; actual native persistence is untested.
+`/sys/fs/pstore/console-ramoops` (the observed Samsung filename) and the
+indexed `console-ramoops-0` variant. A control record written through
+Linux `/dev/pmsg0` survived an actual TWRP reboot and was read from
+`pmsg-ramoops-0`, proving that the recovery pstore backend can persist data.
+Actual native console persistence is still untested.
 
 After logging entry, the native build checks the `mediatek,toprgu` FDT range
 at 0x10007000 / 4 KiB, records watchdog MODE/STATUS, and clears only MODE.EN

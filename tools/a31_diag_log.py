@@ -46,7 +46,8 @@ def collect(adb, serial, output, expected_build):
     output.mkdir(parents=True)
     report = {'expected_build': expected_build, 'phone_writes': False, 'sources': {}}
     sources = {'last_kmsg': '/proc/last_kmsg', 'sec_log': '/proc/sec_log',
-               'pstore_console': '/sys/fs/pstore/console-ramoops-0'}
+               'pstore_console': '/sys/fs/pstore/console-ramoops',
+               'pstore_console_indexed': '/sys/fs/pstore/console-ramoops-0'}
     for name, remote in sources.items():
         partial = output / (name + '.partial')
         result = subprocess.run(prefix + ['pull', remote, str(partial)],

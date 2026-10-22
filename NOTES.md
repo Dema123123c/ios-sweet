@@ -8,6 +8,24 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- LIVE PSTORE BACKEND VERIFIED: ordinary reboot returned automatically
+  to TWRP 3.7.0_11-1. Privileged adb pull /sys/fs/pstore produced actual
+  files console-ramoops (262132 bytes) and pmsg-ramoops-0 (5932 bytes).
+  Unique control marker A31-PSTORE-PROBE-20261022-logger-v2 is PRESENT in
+  recovered PMSG file. This proves Linux recovery pstore RAM survives this
+  reboot sequence; NOT yet native console persistence. Private proof
+  research/a31-pstore-persistence-probe/probe.json and after-reboot files.
+  No phone partition was written for this control test.
+- Fixed collector to try observed console-ramoops AND indexed fallback
+  console-ramoops-0. First candidate had assumed indexed filename, caught
+  by this hardware control BEFORE any new flash. Actual collector baseline
+  research/a31-pstore-collector-baseline successfully read plain console
+  (not_found expected: new native image never booted); indexed path absent.
+- b371d6e0289c797bd250f0cb10b5312f9f3945e3 committed dual log/WDT source;
+  initial CI 39848603596 in progress, follow-up collector filename fix
+  triggers superseding CI. Await final clean-source artifact/checks, package
+  privately with measured pstore profile and fresh unlocked/orange state.
+  Phone currently TWRP, stock BOOT, no pending restore or native test.
 - CURRENT: no native diagnostic is installed; original BOOT restored,
   TWRP RECOVERY retained. Sent ordinary adb reboot recovery ONLY for a
   RAM-log persistence probe, NOT Android. Before reboot wrote unique
