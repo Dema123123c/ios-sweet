@@ -4,6 +4,7 @@ import argparse
 import gzip
 import hashlib
 import io
+import importlib.util
 import json
 import shutil
 import struct
@@ -23,6 +24,53 @@ TOOL_HASHES = {
 
 def sha(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def require_parent_digest(data, size, algorithm, salt, expected):
+    if not 0 < size <= len(data):
+        raise ValueError('parent BOOT hash range exceeds the candidate image')
+    if algorithm != 'sha256' or len(expected) != 32 or len(salt) > 64:
+        raise ValueError('unsupported parent BOOT hash descriptor')
+    actual = hashlib.sha256(salt + data[:size]).digest()
+    if actual != expected:
+        raise ValueError('candidate BOOT does not match parent vbmeta; '
+                         'its own AVB footer does not satisfy the parent hash')
+
+
+def preflight_parent(avbtool, parent_path, data):
+    if sha(avbtool.read_bytes()) != TOOL_HASHES['avbtool']:
+        raise ValueError('parent verification requires the pinned AOSP avbtool')
+    spec = importlib.util.spec_from_file_location('a31_parent_avb', avbtool)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    image = module.ImageHandler(str(parent_path), read_only=True)
+    try:
+        footer, header, descriptors, _ = module.Avb()._parse_image(image)
+        if footer:
+            raise ValueError('expected the top-level phone vbmeta partition')
+        image.seek(0)
+        blob = image.read(header.SIZE + header.authentication_data_block_size +
+                          header.auxiliary_data_block_size)
+        if not module.verify_vbmeta_signature(header, blob):
+            raise ValueError('parent vbmeta signature is invalid')
+        report = {'sha256': sha(parent_path.read_bytes()), 'flags': header.flags,
+                  'bootloader_acceptance_verified': False}
+        if header.flags & 2:
+            report['boot_contract'] = 'verification disabled in supplied parent'
+            return report
+        hashes = [d for d in descriptors if isinstance(d, module.AvbHashDescriptor)
+                  and d.partition_name == 'boot']
+        chains = [d for d in descriptors if isinstance(d, module.AvbChainPartitionDescriptor)
+                  and d.partition_name == 'boot']
+        if len(hashes) != 1 or chains:
+            raise ValueError('unsupported parent BOOT contract; refusing a flash package')
+        descriptor = hashes[0]
+        require_parent_digest(data, descriptor.image_size, descriptor.hash_algorithm,
+                              descriptor.salt, descriptor.digest)
+        report['boot_contract'] = 'candidate matches supplied parent BOOT digest'
+        return report
+    finally:
+        image._image.close()
 
 
 def dtbs(data):
@@ -77,7 +125,7 @@ def package_tar(path, data):
             raise ValueError('Odin package round-trip failed')
 
 
-def build(stock_path, native_dir, output, mkbootimg, avbtool):
+def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta):
     stock = stock_path.read_bytes()
     if sha(stock) != STOCK_SHA256 or len(stock) != 33554432:
         raise ValueError('stock BOOT is not the twice-read A315FXXU5DXJ1 backup; refusing template')
@@ -129,6 +177,15 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool):
                     '--algorithm', 'NONE', '--salt', salt], check=True)
     subprocess.run([sys.executable, str(avbtool), 'verify_image', '--image', str(image)], check=True)
     diagnostic = image.read_bytes()
+    try:
+        parent_report = preflight_parent(avbtool, parent_vbmeta, diagnostic)
+    except Exception:
+        image.unlink()
+        (output / 'REJECTED.txt').write_text(
+            'Parent vbmeta preflight failed. Candidate BOOT removed; no Odin '
+            'flash package produced. Do not change phone partitions to bypass '
+            'this check without a separately reviewed and approved plan.\n')
+        raise
     after = unpack(diagnostic)
     for key, value in header.items():
         if key != 'parts' and after[key] != value:
@@ -149,6 +206,7 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool):
               'stock_sha256': sha(stock), 'diagnostic_sha256': sha(diagnostic),
               'image_sha256': sha(raw), 'avb_algorithm': 'NONE (unsigned)',
               'requires_unlocked_bootloader': True,
+              'parent_vbmeta_preflight': parent_report,
               'header_and_original_ramdisk_dtb_preserved': True,
               'manual_return_to_recovery_required': True,
               'source_image_manifest': metadata}
@@ -164,6 +222,9 @@ if __name__ == '__main__':
     parser.add_argument('--out', type=Path, required=True)
     parser.add_argument('--mkbootimg', type=Path, required=True)
     parser.add_argument('--avbtool', type=Path, required=True)
+    parser.add_argument('--parent-vbmeta', type=Path, required=True,
+                        help='fresh unchanged top-level vbmeta read from this phone; '
+                             'requires openssl on PATH for signed metadata')
     args = parser.parse_args()
     build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
-          args.mkbootimg.resolve(), args.avbtool.resolve())
+          args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve())

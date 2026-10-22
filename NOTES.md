@@ -8,6 +8,23 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- LATEST CONFIRMED OUTCOME: user now reports the INITIAL ANDROID SCREEN,
+  superseding the Samsung-logo-only observation below. Stock recovery
+  booted and Android reached setup after the user-initiated factory reset.
+  Recovery is successful at the user-observed welcome-screen level; ADB
+  and partition readback are still unavailable after the reset. User asked
+  to finish setup, enable USB debugging again and authorize this PC.
+- Fixed tools/mka31diag.py to require --parent-vbmeta, verify the supplied
+  parent signature, and enforce its direct BOOT hash before emitting a
+  flash package. Unsupported BOOT contracts reject; supplied metadata
+  with verification disabled is explicitly reported without claiming
+  bootloader acceptance. On failure candidate boot.img is removed and
+  no Odin tar is emitted. Existing reviewed image files are unchanged.
+  25 host tests pass (4 new parent-hash regression cases). Actual original
+  BOOT passes the saved parent contract; rejected hardware image fails.
+  Full packager integration in research/a31-parent-preflight-rejection-check
+  verifies candidate removal and absence of flash tars. No further phone
+  write or boot command performed. Native shim execution still unproven.
 - LATEST USER REPORT: stock Android recovery opened after factory RECOVERY
   restoration. User independently selected factory reset, despite earlier
   instruction not to wipe. Record data state accurately: a USER-INITIATED

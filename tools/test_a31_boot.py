@@ -1,7 +1,8 @@
 import struct
+import hashlib
 import unittest
 
-from mka31diag import dtbs, unpack
+from mka31diag import dtbs, unpack, require_parent_digest
 from test_a31 import fixture
 
 
@@ -27,6 +28,26 @@ def boot():
 
 
 class A31BootTests(unittest.TestCase):
+    def test_parent_hash_accepts_exact_signed_range(self):
+        salt = b'salt'
+        data = b'original boot' + b'unsigned footer outside signed range'
+        expected = hashlib.sha256(salt + b'original boot').digest()
+        require_parent_digest(data, 13, 'sha256', salt, expected)
+
+    def test_parent_hash_rejects_changed_kernel_despite_own_footer(self):
+        expected = hashlib.sha256(b'salt' + b'original boot').digest()
+        with self.assertRaisesRegex(ValueError, 'does not match parent vbmeta'):
+            require_parent_digest(b'modified boot' + b'valid own AVB footer',
+                                  13, 'sha256', b'salt', expected)
+
+    def test_parent_hash_rejects_truncated_candidate(self):
+        with self.assertRaises(ValueError):
+            require_parent_digest(b'short', 13, 'sha256', b'', bytes(32))
+
+    def test_parent_hash_rejects_unsupported_descriptor(self):
+        with self.assertRaises(ValueError):
+            require_parent_digest(b'boot', 4, 'sha512', b'', bytes(64))
+
     def test_android_dt_table_preserves_payload(self):
         dtb = fixture()
         self.assertEqual(dtbs(table(dtb)), [dtb])
