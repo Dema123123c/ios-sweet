@@ -122,6 +122,20 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   halts and has no display/USB or XNU handoff; a black/logo screen or
   firmware watchdog restart is possible. Preserve Data, vbmeta, RECOVERY,
   bootloaders and partition layout.
+- UPDATE: user photo confirms an error Downloading screen with "Partitions
+  boot", recovery chain-public-key mismatch and BOOT digest mismatches.
+  Expected BOOT digest prefix f7a0d0bd matches the saved stock vbmeta
+  descriptor. Offline avbtool shows stock vbmeta flags 0 and a direct
+  BOOT hash descriptor (size 15,825,424), plus a RECOVERY chain expecting
+  the Samsung key; saved TWRP uses a different key. The native diagnostic
+  image's self-consistent unsigned footer did NOT establish acceptance
+  by this parent vbmeta. Packaging checks were insufficient for that.
+  No native shim execution established. Do NOT repeat this image.
+  User reports automatic reboot loop; Odin/PnP still show no connected
+  Samsung. Asked to force manual Download Mode via the Warning screen,
+  then SHORT VolUp. Exact original BOOT restore remains pending; Odin
+  AP/parameters are ready, Start has NOT been pressed. Preserve all
+  other partitions and do not change vbmeta to force this test to boot.
 
 The handoffs below belong to the original Redmi work; their destructive
 operation approvals do not authorize changes to the Samsung phone.
