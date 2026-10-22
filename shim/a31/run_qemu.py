@@ -13,7 +13,7 @@ def run(image, out, qemu='qemu-system-aarch64'):
     for virtualization, entry in [('off', 1), ('on', 2)]:
         command = [qemu, '-machine', f'virt,gic-version=3,virtualization={virtualization}',
                    '-cpu', 'max', '-m', '512M', '-smp', '1',
-                   '-display', 'none', '-monitor', 'none', '-serial', 'stdio',
+                   '-display', 'none', '-monitor', 'none', '-serial', 'stdio', '-nic', 'none',
                    '-no-reboot', '-semihosting-config', 'enable=on,target=native',
                    '-kernel', str(image)]
         try:
