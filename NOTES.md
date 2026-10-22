@@ -8,6 +8,40 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CURRENT LIVE WARNING-GATED TEST IN PROGRESS: after the previous orange
+  test, user returned TWRP. Logs research/a31-orange-test-logs have NO
+  diagnostic sessions. Agent restored original BOOT with TWO complete
+  raw readbacks af9ef426...ba176f1 and verified both vbmetas unchanged
+  (research/a31-orange-test-restore/result.json). That restore is completed.
+- User clarifies observed screen was Samsung/unlocked-bootloader warning;
+  no observed transition past warning/normal Samsung logo. Diagnostic BOOT
+  intentionally does not load Android or redraw screen, so logo alone proves
+  nothing. Ten seconds may have been consumed by pre-kernel warning; this
+  is a hypothesis, not proof of non-execution. Must acknowledge warning
+  according to ACTUAL displayed text and wait 30s afterward for next test.
+- Important log limitation: current /proc/last_kmsg is 48,638-byte LK log
+  (LK_LOG_STORE prefix, no Linux timestamps), unlike earlier 2MiB previous
+  kernel logs. /proc/sec_log is 2MiB current Linux ring, wrapped/flooded.
+  Native marker absent from both; do not infer native failure or success.
+  Older/newer TWRP images have IDENTICAL compressed kernel SHA
+  8fed8f3fd04590778eedc5ad65a54f6cba8d9ba2a5adb3fd683ee71484feaa4f.
+  Merely changing TWRP version is NOT an established log-path fix.
+- Compiled private read-only C parser probe with NDK28.2/API31 static and
+  ran as Linux shell on the actual phone. Actual FDT parses successfully
+  with SAME shim support.c, finds sec-log 46c00000/200000 and expected
+  GICv3 descriptors. research/a31-live-parser-probe source/binary/result.
+  No EL1/MMU/native-entry conclusion. Initial direct exec denied mode;
+  shell-owned /tmp copy + chmod succeeded, no privilege bypass.
+- Latest test: SAME approved diagnostic 4d0f5a36...18485cf written BOOT only
+  again after point-of-write fresh FDT + getprop unlocked/orange, sync and
+  full readback MATCHED, then adb reboot. Private operation
+  research/a31-warning-gated-test/operation.json, restore_pending=true.
+  User NOW ASKED if actual warning says PRESS POWER KEY TO CONTINUE, short
+  Power and release; then wait 30s WITHOUT buttons, report resulting screen.
+  User told NOT return TWRP YET so we can distinguish warning versus kernel.
+  Await answer. NEXT then direct return TWRP, NEW logs, restore original
+  BOOT with full readback. Existing same-image test/restore approval.
+  No vbmeta/TEE1/bootloader/Data write. No native execution claim.
 - LIVE ORANGE TEST IN PROGRESS: latest 704a106 adds fresh recovery FDT
   gate. Immediately before BOOT write, independently pulled current live FDT
   and demanded bootloader bootargs unlocked/orange; live getprop also
