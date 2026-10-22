@@ -18,12 +18,11 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   af9ef4265e3d15bb0cc3ff8c0b968eeb6da0253db305e37908aa649cfba176f1.
 - New source: patch 0082, A31 build option, ADB/FDT/ADT helpers and an
   executable CPU diagnostic. Eight host tests pass; A31 header check and
-  native Linux CPU probe compile/run. No full XNU build, CI run or XNU
-  boot on this phone. Do not represent these checks as a working iOS port.
+  native Linux CPU probe compile/run. Full XNU build now passes (below),
+  but no XNU boot on this phone. Do not call this a working iOS port.
 - A31 requires MediaTek MSDC/eMMC, command-mode display and Imagis input
   drivers. The SWEET shim is still Qualcomm-specific and MUST NOT be used.
-- Next: a macOS/Xcode build of the initial A31 target, then a Samsung
-  shim and diagnostic output. User authorized a GitHub Actions build;
+- Next: a Samsung shim and diagnostic output. User authorized a GitHub Actions build;
   public fork https://github.com/Dema123123c/ios-sweet was created in the
   user's signed-in browser. Source branch is locally `a31-bringup`, first
   implementation commit c64264c. GitHub CLI 2.103.0 is checksum-verified
@@ -32,14 +31,23 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   to remote `a31fork` (origin is still the upstream; do not push origin).
   First CI run 39821518791 builds commit 62ac3e2 on macos-14:
   https://github.com/Dema123123c/ios-sweet/actions/runs/39821518791
-  At this checkpoint the eight host tests, source fetch and Xcode/deps
-  steps passed; Build is in progress. No compile success or phone boot
-  confirmed yet. Workflow defaults to A31 and triggers on patch/workflow
+  SUCCESS in 7m44s, including host tests, compile and artifact upload.
+  Downloaded `research/a31-ci-62ac3e2/kernel/kernel.development.a31`:
+  17,171,976 bytes; arm64 Mach-O, CPU subtype 0; SHA256 matches CI:
+  78dad2f54e7a861d47fab8deef719368318ecc856f9873070d482eca52ffc629.
+  `research/a31-ci-62ac3e2/log/xnu-build.log` confirms patch 0082 applied
+  and -DA31=1 compiler flags. No phone boot confirmed. Fork default branch
+  is a31-bringup. Workflow defaults to A31 and triggers on patch/workflow
   pushes to a31-bringup. It saves the build log and requires Xcode 15. The
   macos-14 image has an announced 2026-11-02 retirement; future builds
   need a compatible runner or a verified toolchain update.
   The user has not authorized public publication of device dumps
   (keep them private and out of Git).
+- Read-only diagnostic finding: recovery CONFIG_PSTORE_RAM and
+  CONFIG_SEC_DEBUG_LAST_KMSG are enabled. `adb pull /proc/last_kmsg`
+  succeeds (2,097,140 bytes, private capture). A shim could potentially
+  use reserved logging memory, but the format, recovery preservation and
+  native-kernel output path are NOT implemented or validated.
 
 The handoffs below belong to the original Redmi work; their destructive
 operation approvals do not authorize changes to the Samsung phone.
