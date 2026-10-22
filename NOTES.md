@@ -8,6 +8,41 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- VERIFIED NEW PROGRESS: ordinary stock Android reboot completed; still
+  flash.locked=1 / locked / green. After reboot, developer Settings now
+  explicitly shows "Заводская разблокировка" with summary "Разрешить
+  разблокировку загрузчика ОС", checked=true AND enabled=true. The entry
+  was absent before Wi-Fi/KG transition/reboot. Private actual UI evidence:
+  research/a31-oem-probe/oem-after-reboot.xml and .png. OEM setting was
+  NOT toggled by agent; it was already ON when it appeared.
+- New KG boot log now explicitly reports vaultState:Checking, superseding
+  earlier Prenormal (private knoxguard-after-reboot.txt). This supports
+  the new attempt; do not merely repeat prior loops without that finding.
+- Temporary stay-awake modification RESTORED and read-verified to exact
+  original value 7; screen-awake-restore.json now restored=true. No
+  outstanding power-setting cleanup. No OEM/security preference changed.
+- Sent successful adb shell reboot -p again. User now asked to enter
+  Warning with both volumes + USB, then long VolUp and confirm ONLY Unlock
+  bootloader under existing explicit unlock/wipe approval. Await result.
+  No native image or other partition write since factory RECOVERY restore.
+- NEW FINDING: dumpsys knoxguard_service is readable. Historical boot logs
+  explicitly say vaultState:Prenormal. After user connected Wi-Fi, latest
+  log says setCheckingStateToRpmb:true. Connectivity has active default
+  network 100 and a VALIDATED network. This is a logged successful state
+  transition, not a direct current-state API query. No OEM restrictions
+  found in dumpsys user/device_policy; OEM service Binder reads remain
+  denied, so no stronger carrier-state claim is justified.
+- Screen kept timing out to AOD/keyguard. Temporarily set svc power stayon
+  usb, with EXACT previous value saved in private
+  research/a31-oem-probe/screen-awake-restore.json. MUST RESTORE IT BEFORE
+  STOPPING or any further poweroff/Download test. Standard wm dismiss-keyguard
+  succeeded without credentials (no authentication bypass); developer
+  Settings opened. Five fresh scroll viewports had no OEM-unlock entry.
+  No developer/OEM/security setting changed. Only temporary stay-awake and
+  navigation actions occurred. Private XML/screenshots in a31-oem-probe.
+- Since the logged KG transition happened after boot, sent one ordinary
+  `adb reboot` to reload stock Android before inspecting OEM settings again.
+  No wipe, flash or unlock. Completion/state check currently waiting.
 - Latest approved unlock attempt from fully powered-off state again went
   directly to Downloading with NO Unlock confirmation. Do not repeat the
   same button loop without a new finding. User returned to Android; ADB
