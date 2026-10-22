@@ -8,6 +8,22 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CURRENT PHOTO EVIDENCE during SAME warning-gated test: user supplied
+  two actual phone photos. One is normal Samsung Galaxy A31 splash with
+  red unofficial-software warning; the other says bootloader unlocked and
+  explicitly PRESS POWER KEY TO CONTINUE. Neither shows the earlier AVB
+  hash/key error. These photos do NOT prove native entry or diagnostic PASS.
+- User now instructed short Power ONLY if currently on the explicit
+  continuation screen; once Samsung splash appears, wait 30s, then manually
+  return TWRP. This supersedes earlier instruction to stay on warning.
+  Await return. Diagnostic 4d0f5a36...18485cf STILL installed in BOOT;
+  restore remains pending in research/a31-warning-gated-test/operation.json.
+  NEXT: NEW diagnostic log collection expected build 4279c64..., then
+  immediate original BOOT restore (af9ef426...ba176f1), sync/full raw readback.
+  No further unchanged diagnostic flash without a new finding.
+- CI 39844927623 for source 704a106a9c57619540ad27eb23cd96330b887daa
+  now SUCCESS (33 Python checks, C sanitizers, native build, QEMU entry tests).
+  This is not phone MMU/timer/native execution evidence.
 - CURRENT LIVE WARNING-GATED TEST IN PROGRESS: after the previous orange
   test, user returned TWRP. Logs research/a31-orange-test-logs have NO
   diagnostic sessions. Agent restored original BOOT with TWO complete
