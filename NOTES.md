@@ -8,6 +8,19 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- Latest user returned to Android/settings, fixed ADB and asked to retry.
+  Same stock A31/firmware and completed boot verified. Actual fresh values
+  STILL flash.locked=1, vbmeta.device_state=locked, verifiedbootstate=green,
+  sys.oem_unlock_allowed=1. User read suffix U after OEM LOCK ON (typed
+  "u1"); no completed unlock/wipe has been confirmed. Approval for full
+  unlock and wipe remains valid; do not ask again for that same action.
+- To avoid the restart/Warning timing loop, sent `adb shell reboot -p`
+  successfully (response Done) to power the phone fully off. User now
+  instructed: once dark, unplug USB, hold BOTH volume keys and reconnect;
+  at Warning release both then hold ONLY VolUp 5-7s, no Power; if Unlock
+  bootloader confirmation appears, use VolUp for the approved unlock.
+  Await result. No new partition write performed. Do not claim unlocked
+  until a real confirmation and verified resulting state are available.
 - After the long-VolUp instruction, user says only Download Mode appeared
   and asks to check whether unlocked. ADB absent; Windows Samsung USB is
   present. Read-only samloader detect --verbose / vcom succeeded detecting
