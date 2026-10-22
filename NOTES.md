@@ -8,6 +8,30 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- URGENT CURRENT: user reports a NEW red bootloader error after the
+  unlocked diagnostic test; manual TWRP entry ALSO returns red error.
+  Exact Partitions/Reason still not supplied. NO native diagnostic
+  execution or PASS established. ADB absent. Original BOOT restoration
+  PENDING; do not leave the phone in this state or repeat diagnostic.
+  V2 output marked DO-NOT-FLASH-REJECTED.txt; only restore package usable.
+- User now asked enter manual Download Mode (unplug, Power+Down to black,
+  release Power -> both volumes + insert USB -> SHORT Up at Warning).
+  Separate current question asks manually open Patched Odin (automatic
+  sky launch AGAIN gives no targetable window, refresh also empty), and
+  select AP C:/Users/delete/Downloads/A31_STOCK_BOOT_RESTORE_DXJ1.tar.
+  That convenience TAR is byte-exact copy of v2 original-boot-restore.tar;
+  contains ONLY boot.img, SHA af9ef426...ba176f1. User told NOT press Start
+  until options inspected. Existing explicit original-BOOT restore approval
+  remains valid. Do NOT request new wipe/unlock/vbmeta approval as a substitute.
+- Next: verify new Odin window COM8/AP exact STOCK BOOT restoration file,
+  AutoReboot OFF, RePartition/NandErase/FlashLock OFF, FResetTime ON;
+  perform restore once, require NEW PASS/log boot.img/RESOK/succeed1failed0.
+  Then enter TWRP directly and raw-read BOOT to verify original hash;
+  recover last_kmsg/sec_log if available, without claiming execution
+  from blank/logo/red-screen observations. Keep vbmeta/TEE1/Data untouched.
+- CI for packager update 0ac6fba217b159980f088994f1a4daf7c787d48f
+  succeeded: a31-shim run 39842733039. This is host/QEMU evidence only;
+  actual unlocked hardware acceptance FAILED/blocked by observed red error.
 - LIVE TEST IN PROGRESS: already-approved diagnostic bytes SHA256
   4d0f5a36873796bc6401878a1885bf57de124993de4f86732d82234cf18485cf
   were written ONLY to BOOT /dev/block/mmcblk0p35 via TWRP ADB sync.
