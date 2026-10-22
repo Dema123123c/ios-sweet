@@ -8,6 +8,29 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- VERIFIED REAL UNLOCK after user-confirmed physical unlock/reset/setup:
+  same SM-A315F / A315FXXU5DXJ1, sys.boot_completed=1, flash.locked=0,
+  vbmeta.device_state=unlocked, verifiedbootstate=orange, OEM allowed=1.
+  Private actual properties: research/a31-after-physical-unlock/properties.json.
+  Developer UI now explicitly says bootloader already unlocked; OEM switch
+  checked=true, enabled=false (private oem.xml). After this reset KG log
+  again starts Prenormal then reports setCheckingStateToRpmb:true after
+  Internet setup; do not claim a directly queried current KG state.
+- Prepared private outputs/a31-twrp-after-unlock-v1 with AP-only TWRP TAR
+  and exact factory RECOVERY restore TAR. User's TWRP.tar contains only
+  recovery.img, 33554432 bytes, SHA256 1aa8753d...112f2e2, byte-identical
+  to earlier live TWRP backup. Both TARs round-trip checked. Existing explicit
+  authorization to flash this same TWRP/RECOVERY is retained; no new image
+  content or partition is introduced. No new flash performed yet.
+- Sent adb reboot download successfully. Patched Odin launch through sky
+  returned no targetable window; fresh list_windows/list_apps also has no
+  Odin window. Win32 process exists, exact user-requested exe in
+  Downloads/Odin+v3.14.1+Patched(1). User asked to open it manually and
+  handle any Windows prompt. Do NOT launch another duplicate or guess UI.
+  Await visible Odin window, then select ONLY prepared TWRP AP TAR; verify
+  AutoReboot OFF, RePartition/NandErase/FlashLock OFF before prior-approved
+  recovery write. Native diagnostic repeat remains blocked by parent
+  preflight pending a reviewed plan using measured unlocked state.
 - USER CONFIRMED physical Unlock bootloader confirmation and that the
   resulting factory reset started. This is new progress after the KG
   Checking transition and visible enabled OEM control. Actual post-reset
