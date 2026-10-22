@@ -148,7 +148,18 @@ static int probe_timer(const struct dt_view *dt)
     *(volatile uint8_t *)(sgi + 0x400 + 27) = 0x80;
     write32(sgi + 0xc04, read32(sgi + 0xc04) & ~(3U << 22));
     write32(sgi + 0x100, 1U << 27);
-    write32(gicd, read32(gicd) | 0x11);
+    uint32_t control = read32(gicd);
+    field("GICD_CTLR_BEFORE=", control);
+    /* DS=1 has a single-security-state view: Group 1 enable moves to bit 1. */
+    uint32_t group_enable = (control & 0x40) ? 2 : 1;
+    if (!(control & 0x10)) {
+        write32(gicd, control & ~3U);
+        if (!wait_clear(gicd, 1U << 31)) return 0;
+        control = (control & ~3U) | 0x10;
+        write32(gicd, control);
+        if (!wait_clear(gicd, 1U << 31)) return 0;
+    }
+    write32(gicd, control | group_enable);
     if (!wait_clear(gicd, 1U << 31)) return 0;
     WRITE(icc_ctlr_el1, READ(icc_ctlr_el1) & ~2ULL);
     WRITE(icc_pmr_el1, 0xff); WRITE(icc_bpr1_el1, 0); WRITE(icc_igrpen1_el1, 1);
@@ -157,6 +168,9 @@ static int probe_timer(const struct dt_view *dt)
     __asm__ volatile("msr daifclr, #2" ::: "memory");
     while (timer_irqs < 3 && now() - start < frequency) {}
     __asm__ volatile("msr daifset, #2" ::: "memory");
+    field("CNTV_CTL=", READ(cntv_ctl_el0));
+    field("GICD_CTLR_AFTER=", read32(gicd));
+    field("GICR_PENDING=", read32(sgi + 0x200));
     WRITE(cntv_ctl_el0, 0); write32(sgi + 0x180, 1U << 27); BARRIER();
     field("VTIMER_IRQS=", timer_irqs); field("OTHER_IRQS=", other_irqs);
     return timer_irqs >= 3 && !other_irqs;
