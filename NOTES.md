@@ -6,6 +6,25 @@ User requested a native ios-sweet port to Samsung Galaxy A31; no existing
 A31 XNU port was supplied. Do not confuse the working Linux TWRP kernel
 with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
+### Latest recovery state (supersedes pending-restore entries below)
+
+- User successfully entered manual Download Mode; Windows enumerated
+  Samsung USB and Odin connected on COM8. The approved original BOOT
+  restore was started with AP = a31-original-boot-restore.tar only.
+  All other slots empty; Auto Reboot/Nand Erase/Re-Partition/Flash Lock
+  OFF. New Odin PASS in 00:07; log explicitly shows `boot.img`,
+  `RQT_CLOSE`, `RES OK`, `succeed 1 / failed 0`. This is the NEW BOOT
+  restore result, not the earlier RECOVERY PASS.
+- Restored file was byte-equal to the fresh pre-test stock backup:
+  33,554,432 bytes, SHA256 af9ef426...176f1. Its salted AVB BOOT digest
+  exactly matches stock parent vbmeta f7a0d0bd...21511; rejected diagnostic
+  computes 8c7c2bbc...6aea, matching the photographed error prefix.
+- No post-restoration partition readback yet. User was asked to exit
+  Download Mode (Power+VolDown until black, release BOTH; no VolUp) and
+  report normal Android boot. Android boot/recovered TWRP still unverified.
+- Do not repeat the rejected unsigned diagnostic BOOT. No evidence the
+  native shim ran. Resolve parent vbmeta verification before another test.
+
 - Target confirmed over ADB: SM-A315F, MT6768, Android 12, A315FXXU5DXJ1,
   unlocked. User explicitly approved installing `Downloads/TWRP.tar` in
   RECOVERY. Odin 3.14.1 patched reported PASS; TWRP 3.7.1_12-1 boots.
