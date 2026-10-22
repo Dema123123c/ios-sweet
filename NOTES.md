@@ -8,6 +8,25 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- LIVE TEST IN PROGRESS: already-approved diagnostic bytes SHA256
+  4d0f5a36873796bc6401878a1885bf57de124993de4f86732d82234cf18485cf
+  were written ONLY to BOOT /dev/block/mmcblk0p35 via TWRP ADB sync.
+  Independent full 33554432-byte raw readback matches EXACTLY; sync done.
+  `adb reboot` then successfully issued. This is AFTER measured physical
+  unlock (stock flash.locked=0 / unlocked / orange), unlike initial failure.
+  Private operation: research/a31-unlocked-diagnostic-attempt/operation.json.
+- USER NOW ASKED wait 10s, then manually return to TWRP (USB attached,
+  Power+VolDown to black -> immediately Power+VolUp, release Power at logo,
+  keep Up). Await observation; no diagnostic execution/PASS established yet.
+  NEXT: read tools/a31_diag_log.py for expected build
+  4279c64e605cf5c5de4799f9962d3e6756b5f6eb, save logs to NEW private folder,
+  THEN RESTORE ORIGINAL BOOT af9ef426...ba176f1 via ADB sync and full readback.
+  Restore approval already exists for this exact test sequence. Restore
+  template is outputs/a31-diagnostic-unlocked-v2/restore/boot.img.
+  Do not leave diagnostic installed after collecting evidence. If no TWRP,
+  use manual Download/Odin original-boot-restore TAR, not full firmware.
+  No vbmeta/TEE1/bootloader/Data write performed. Native image contains no
+  XNU handoff or display/USB driver; blank/logo alone is not a test result.
 - CURRENT TWRP BOOT VERIFIED over authorized ADB: a31/mt6768, version
   3.7.0_11-1. Fresh read-only collection research/a31-unlocked-capture-1
   has TWO independent matching reads of BOOT, RECOVERY, dtbo and both
