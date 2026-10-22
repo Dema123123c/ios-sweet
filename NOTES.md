@@ -8,6 +8,38 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CURRENT SAFE STATE: warning-gated diagnostic test produced a USER-REPORTED
+  bootloop, but physical TWRP entry worked. New logs
+  research/a31-warning-gated-logs contain NO diagnostic session. Exact
+  native execution and reset cause remain UNPROVEN. Do NOT run unchanged
+  diagnostic again; instrumentation must improve first.
+- ORIGINAL BOOT RESTORED again via TWRP ADB sync + sync, TWO independent
+  full readbacks af9ef426...ba176f1. Both vbmetas read/verified unchanged.
+  Phone LEFT IN TWRP; Android NOT rebooted. Private result
+  research/a31-warning-gated-restore/result.json; operation restore_pending=false.
+  No pending phone restore or partition write. All prior pending-test entries
+  below superseded. No vbmeta/TEE1/bootloader/Data writes.
+- User emphasizes FINAL GOAL ONLY NATIVE iOS, Android is not wanted as
+  final system. Do not use Android reboot/stock UI as default next step.
+  Keep phone TWRP during development; original BOOT restoration has been
+  solely a recovery path, not the requested final OS. User also asks whether
+  Android can be restored later: answered yes via matching stock firmware;
+  system/vendor currently unmodified, original BOOT/RECOVERY backed up;
+  restoring OS does not restore erased personal data. Full Samsung ZIP is
+  still PARTIAL, not a complete already-downloaded firmware backup.
+- Read-only new ramoops probe: recovery sysfs parameters via privileged
+  ADB pull: mem_address=1291911168 (0x4d010000), mem_size=917504 (0xe0000),
+  console_size=262144, record_size=4096, ftrace_size=4096, pmsg_size=65536,
+  mem_type=0, ECC=0. Live FDT confirms mediatek,pstore reserved region
+  0x4d010000+0xe0000. Kernel reference has BOTH console and bconsole zones,
+  so console starts at base+(total-2*console-ftrace-pmsg)=0x4d05f000.
+  This is a candidate persistent log channel, NOT yet written/tested.
+  Private parameters research/a31-pstore-probe/parameters.json.
+- WDT is only a reset hypothesis. LK log has wdt_status=0x800 but final
+  boot reason=31 after user manual button reset; cannot attribute previous
+  diagnostic reboot from that alone. Live FDT toprgu@10007000 confirms
+  MMIO 0x10007000+0x1000, compatible mediatek,toprgu. No WDT register writes
+  yet. Fetching matching kernel register definitions before implementation.
 - CURRENT PHOTO EVIDENCE during SAME warning-gated test: user supplied
   two actual phone photos. One is normal Samsung Galaxy A31 splash with
   red unofficial-software warning; the other says bootloader unlocked and
