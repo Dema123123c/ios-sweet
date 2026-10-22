@@ -8,6 +8,22 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- LIVE ORANGE TEST IN PROGRESS: latest 704a106 adds fresh recovery FDT
+  gate. Immediately before BOOT write, independently pulled current live FDT
+  and demanded bootloader bootargs unlocked/orange; live getprop also
+  unlocked/orange. FDT SHA cec9af7e...fe90c402. SAME already-approved
+  diagnostic 4d0f5a36...18485cf written ONLY to BOOT p35, sync, full
+  33554432-byte independent raw readback MATCHED; then adb reboot issued.
+  Private operation research/a31-orange-diagnostic-attempt/operation.json.
+- User now asked wait 10s then return TWRP via physical buttons, no unlock
+  toggle/format/sideload. Await result. No diagnostic execution claim yet.
+  NEXT REQUIRED: collect logs into NEW private folder with expected build
+  4279c64e605cf5c5de4799f9962d3e6756b5f6eb; restore exact stock BOOT
+  from outputs/a31-diagnostic-unlocked-v3/restore/boot.img (af9ef426...ba176f1),
+  sync and complete raw readback. Restore already approved. Do NOT leave
+  diagnostic installed after test. No vbmeta/TEE1/bootloader/Data write.
+  If TWRP blocked, obtain actual error/photo and restore stock BOOT via
+  Download/Patched Odin. Do not repeat test again without a new finding.
 - RECOVERED WITHOUT ODIN: user reports bootloader had relocked, unlocked
   it again and successfully entered TWRP. ADB now confirms a31/mt6768,
   TWRP 3.7.0_11-1. New twice-read capture
