@@ -16,7 +16,7 @@ def u64(*n):
     return struct.pack('>%dQ' % len(n), *n)
 
 
-def fixture():
+def fixture(bootargs=None):
     names = bytearray()
     offsets = {}
     tree = bytearray()
@@ -44,7 +44,7 @@ def fixture():
         ('timer', {'compatible': b'arm,armv8-timer\0', 'clock-frequency': u32(13000000),
                    'interrupts': u32(1, 13, 8, 1, 14, 8, 1, 11, 8, 1, 10, 8)}),
         ('psci', {'compatible': b'arm,psci-1.0\0', 'method': b'smc\0'}),
-    ])
+    ] + ([('chosen', {'bootargs': bootargs})] if bootargs is not None else []))
     tree.extend(u32(9))
     header = u32(0xd00dfeed, 56 + len(tree) + len(names), 56, 56 + len(tree), 40, 17, 16, 0, len(names), len(tree))
     return header + bytes(16) + tree + names

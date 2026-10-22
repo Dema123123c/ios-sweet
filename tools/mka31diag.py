@@ -41,6 +41,22 @@ def validate_unlocked_stock(properties):
     return required
 
 
+def validate_live_unlocked_fdt(data):
+    nodes, _ = parse(data)
+    if 'mediatek,MT6768' not in strings(nodes.get('/', {}).get('compatible', b'')):
+        raise ValueError('live recovery FDT must identify MT6768')
+    bootargs = nodes.get('/chosen', {}).get('bootargs', b'').split(b'\0')[0].decode('ascii')
+    required = {'androidboot.vbmeta.device_state': 'unlocked',
+                'androidboot.verifiedbootstate': 'orange'}
+    for key, expected in required.items():
+        values = [v for token in bootargs.split() for k, sep, v in [token.partition('=')]
+                  if sep and k == key]
+        if values != [expected]:
+            raise ValueError('fresh recovery FDT must confirm unlocked/orange; '
+                             'older stock Android evidence is insufficient')
+    return {'sha256': sha(data), 'bootargs_state': required}
+
+
 def require_parent_digest(data, size, algorithm, salt, expected):
     if not 0 < size <= len(data):
         raise ValueError('parent BOOT hash range exceeds the candidate image')
@@ -157,7 +173,12 @@ def package_tar(path, data):
 
 
 def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
-          unlocked_stock_properties=None):
+          unlocked_stock_properties=None, live_recovery_fdt=None):
+    live_report = None
+    if unlocked_stock_properties is not None:
+        if live_recovery_fdt is None:
+            raise ValueError('unlocked test also requires fresh --live-recovery-fdt')
+        live_report = validate_live_unlocked_fdt(live_recovery_fdt.read_bytes())
     stock = stock_path.read_bytes()
     if sha(stock) != STOCK_SHA256 or len(stock) != 33554432:
         raise ValueError('stock BOOT is not the twice-read A315FXXU5DXJ1 backup; refusing template')
@@ -213,6 +234,8 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
         properties = (json.loads(unlocked_stock_properties.read_text(encoding='utf-8'))
                       if unlocked_stock_properties is not None else None)
         parent_report = preflight_parent(avbtool, parent_vbmeta, diagnostic, properties)
+        if live_report is not None:
+            parent_report['live_recovery_fdt'] = live_report
     except Exception:
         image.unlink()
         (output / 'REJECTED.txt').write_text(
@@ -263,7 +286,11 @@ if __name__ == '__main__':
                         help='explicit opt-in to testing unlocked AVB policy: fresh stock Android '
                              'getprop JSON from this A31 (unlocked/orange). This file is operator '
                              'evidence, not attestation or proof of Samsung boot acceptance')
+    parser.add_argument('--live-recovery-fdt', type=Path,
+                        help='fresh /sys/firmware/fdt read from current TWRP, also required '
+                             'for unlocked tests; rejects green or contradictory bootargs')
     args = parser.parse_args()
     build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
           args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve(),
-          args.unlocked_stock_properties.resolve() if args.unlocked_stock_properties else None)
+          args.unlocked_stock_properties.resolve() if args.unlocked_stock_properties else None,
+          args.live_recovery_fdt.resolve() if args.live_recovery_fdt else None)

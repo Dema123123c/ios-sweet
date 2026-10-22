@@ -8,6 +8,36 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- RECOVERED WITHOUT ODIN: user reports bootloader had relocked, unlocked
+  it again and successfully entered TWRP. ADB now confirms a31/mt6768,
+  TWRP 3.7.0_11-1. New twice-read capture
+  research/a31-after-second-unlock-capture confirms BOOT was still diagnostic
+  4d0f5a36...18485cf, RECOVERY d8a89533...bbcd890, both vbmetas unchanged.
+  Logs research/a31-after-second-unlock-logs: no diagnostic session found.
+- RESTORED stock BOOT via ADB sync, sync done; TWO independent COMPLETE
+  raw readbacks match af9ef4265e3d15bb0cc3ff8c0b968eeb6da0253db305e37908aa649cfba176f1.
+  Results research/a31-restored-after-second-unlock/result.json. Phone stays
+  TWRP; no reboot yet. Odin recovery requests superseded, no Odin flash needed.
+- CRITICAL NEW EVIDENCE: comparison of actual live FDT chosen bootargs
+  (not just getprop) shows PREVIOUS recovery before failed test had
+  device_state=unlocked BUT verifiedbootstate=green. AFTER user's repeat
+  unlock, current recovery chosen bootargs AND /proc/cmdline both say
+  unlocked/orange. Earlier stock Android unlocked/orange did not guarantee
+  this later recovery's state. User calls it relock; exact cause unverified.
+  Do NOT conclude Samsung rejects this diagnostic while actually orange.
+- Added mandatory --live-recovery-fdt for unlocked packager mode; rejects
+  green, missing or duplicate/conflicting states. No package output if
+  invalid FDT. 33 Python tests pass, and actual PREVIOUS green FDT rejected
+  by the new guard. Fresh orange FDT passes. Parent signature/range/strict
+  default checks remain. Initial integration correctly rejected diagnostic
+  capture as stock template; corrected input to restored stock raw readback.
+- Prepared private outputs/a31-diagnostic-unlocked-v3 with SAME prior
+  approved diagnostic bytes 4d0f5a36...18485cf and exact stock restoration,
+  using fresh orange FDT + current unchanged parent and verified stock BOOT.
+  Plan now: at point of write pull live FDT again and demand orange/unlocked,
+  write ONLY same diagnostic BOOT, sync/full readback, reboot; user return
+  TWRP; collect matching-session logs; restore original BOOT with full readback.
+  Existing same-image test/restore approval retained. No vbmeta/TEE1/Data writes.
 - URGENT CURRENT: user reports a NEW red bootloader error after the
   unlocked diagnostic test; manual TWRP entry ALSO returns red error.
   Exact Partitions/Reason still not supplied. NO native diagnostic

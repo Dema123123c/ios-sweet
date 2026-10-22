@@ -2,7 +2,8 @@ import struct
 import hashlib
 import unittest
 
-from mka31diag import dtbs, unpack, require_parent_digest, check_boot_contract
+from mka31diag import (dtbs, unpack, require_parent_digest, check_boot_contract,
+                      validate_live_unlocked_fdt)
 from test_a31 import fixture
 
 
@@ -28,6 +29,26 @@ def boot():
 
 
 class A31BootTests(unittest.TestCase):
+    def test_live_recovery_requires_unlocked_and_orange(self):
+        data = fixture(b'androidboot.vbmeta.device_state=unlocked '
+                       b'androidboot.verifiedbootstate=orange\0')
+        self.assertEqual(validate_live_unlocked_fdt(data)['sha256'],
+                         hashlib.sha256(data).hexdigest())
+
+    def test_live_recovery_rejects_observed_green_state(self):
+        data = fixture(b'androidboot.vbmeta.device_state=unlocked '
+                       b'androidboot.verifiedbootstate=green\0')
+        with self.assertRaisesRegex(ValueError, 'older stock Android evidence is insufficient'):
+            validate_live_unlocked_fdt(data)
+
+    def test_live_recovery_rejects_missing_or_ambiguous_state(self):
+        for args in [b'', b'androidboot.verifiedbootstate=orange',
+                     b'androidboot.vbmeta.device_state=locked androidboot.verifiedbootstate=orange',
+                     b'androidboot.vbmeta.device_state=unlocked androidboot.verifiedbootstate=orange '
+                     b'androidboot.verifiedbootstate=green']:
+            with self.subTest(args=args), self.assertRaises(ValueError):
+                validate_live_unlocked_fdt(fixture(args))
+
     def unlocked_properties(self):
         return {'ro.product.model': 'SM-A315F', 'ro.product.device': 'a31',
                 'ro.build.PDA': 'A315FXXU5DXJ1', 'sys.boot_completed': '1',
