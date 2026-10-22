@@ -1,0 +1,169 @@
+#!/usr/bin/env python3
+"""Prepare private A31 diagnostic/restore BOOT packages. Never flashes a phone."""
+import argparse
+import gzip
+import hashlib
+import io
+import json
+import shutil
+import struct
+import subprocess
+import sys
+import tarfile
+from pathlib import Path
+
+from a31_fdt import parse, strings
+
+STOCK_SHA256 = 'af9ef4265e3d15bb0cc3ff8c0b968eeb6da0253db305e37908aa649cfba176f1'
+TOOL_HASHES = {
+    'mkbootimg': '2a8d05d34110f66c463668f43fc812ce2e46e66459c347eaadb080271df69aa8',
+    'avbtool': 'a9ec360fc5395db9b72d36c03af59ff984f4eefcc349dc32a556de7f8ed892ab',
+}
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def dtbs(data):
+    if data[:4] == bytes.fromhex('d00dfeed'):
+        return [data]
+    if len(data) < 32:
+        raise ValueError('truncated Android DT table')
+    magic, total, header, entry, count, offset, page, version = struct.unpack_from('>8I', data)
+    if magic != 0xd7b7ab1e or total > len(data) or header != 32 or entry != 32 or \
+            not 1 <= count <= 16 or offset < header or offset + count * entry > total or version:
+        raise ValueError('unexpected Android DT table header')
+    result = []
+    for index in range(count):
+        size, start = struct.unpack_from('>2I', data, offset + index * entry)
+        if start < offset + count * entry or start > total or size > total - start:
+            raise ValueError('Android DT entry outside table')
+        result.append(data[start:start + size])
+    return result
+
+
+def unpack(data):
+    if len(data) < 1660 or data[:8] != b'ANDROID!':
+        raise ValueError('not an Android boot image v2')
+    ks, ka, rs, ra, ss, sa, ta, page, version, osv = struct.unpack_from('<10I', data, 8)
+    if version != 2 or page != 2048 or ss or struct.unpack_from('<I', data, 1632)[0]:
+        raise ValueError('expected A31 v2/2048 boot layout without second/recovery_dtbo')
+    ds, da = struct.unpack_from('<IQ', data, 1648)
+    if struct.unpack_from('<I', data, 1644)[0] != 1660 or not ds:
+        raise ValueError('invalid v2 header size or missing DTB')
+    parts = {}
+    offset = page
+    for name, size in [('kernel', ks), ('ramdisk', rs), ('dtb', ds)]:
+        if size > len(data) - offset:
+            raise ValueError(f'truncated {name}')
+        parts[name] = data[offset:offset + size]
+        offset += (size + page - 1) // page * page
+    cmdline = data[64:576].split(b'\0')[0] + data[608:1632].split(b'\0')[0]
+    return {'kernel_addr': ka, 'ramdisk_addr': ra, 'tags_addr': ta,
+            'dtb_addr': da, 'os_version': osv, 'page_size': page,
+            'board': data[48:64].split(b'\0')[0].decode('ascii'),
+            'cmdline': cmdline.decode('ascii'), 'parts': parts}
+
+
+def package_tar(path, data):
+    with tarfile.open(path, 'w', format=tarfile.USTAR_FORMAT) as archive:
+        entry = tarfile.TarInfo('boot.img')
+        entry.size = len(data)
+        entry.mode = 0o644
+        archive.addfile(entry, io.BytesIO(data))
+    with tarfile.open(path, 'r') as archive:
+        if archive.getnames() != ['boot.img'] or archive.extractfile('boot.img').read() != data:
+            raise ValueError('Odin package round-trip failed')
+
+
+def build(stock_path, native_dir, output, mkbootimg, avbtool):
+    stock = stock_path.read_bytes()
+    if sha(stock) != STOCK_SHA256 or len(stock) != 33554432:
+        raise ValueError('stock BOOT is not the twice-read A315FXXU5DXJ1 backup; refusing template')
+    header = unpack(stock)
+    if [header[k] for k in ['kernel_addr', 'ramdisk_addr', 'tags_addr', 'dtb_addr']] != [
+            0x40080000, 0x47c80000, 0x4bc80000, 0x4bc80000]:
+        raise ValueError('A31 load addresses changed')
+    for dtb in dtbs(header['parts']['dtb']):
+        nodes, _ = parse(dtb)
+        if 'mediatek,MT6768' not in strings(nodes['/']['compatible']):
+            raise ValueError('stock DTB does not identify MT6768')
+    metadata = json.loads((native_dir / 'build.json').read_text())
+    raw = (native_dir / 'Image').read_bytes()
+    compressed = (native_dir / 'Image.gz').read_bytes()
+    if metadata['qemu'] is not False or metadata['sha256'] != sha(raw) or gzip.decompress(compressed) != raw:
+        raise ValueError('native diagnostic Image/manifest mismatch (QEMU image is forbidden)')
+    if raw[56:60] != b'ARM\x64' or struct.unpack_from('<QQQ', raw, 8) != (0x80000, len(raw), 12):
+        raise ValueError('diagnostic Linux Image header mismatch')
+    for name, tool in [('mkbootimg', mkbootimg), ('avbtool', avbtool)]:
+        if sha(tool.read_bytes()) != TOOL_HASHES[name]:
+            raise ValueError(f'{name} must match the pinned AOSP android-12.0.0_r34 source')
+    if output.exists():
+        raise FileExistsError('use a new output folder; do not overwrite a reviewed flash package')
+    output.mkdir(parents=True)
+    staging = output / 'components'
+    staging.mkdir()
+    for name in ['ramdisk', 'dtb']:
+        (staging / name).write_bytes(header['parts'][name])
+    shutil.copyfile(native_dir / 'Image.gz', staging / 'Image.gz')
+    osv = header['os_version']
+    os_version = f'{(osv >> 25) & 127}.{(osv >> 18) & 127}.{(osv >> 11) & 127}'
+    patch = f'{2000 + ((osv >> 4) & 127):04}-{osv & 15:02}'
+    (output / 'diagnostic').mkdir()
+    image = output / 'diagnostic' / 'boot.img'
+    command = [sys.executable, str(mkbootimg), '--header_version', '2', '--base', '0',
+               '--kernel', str(staging / 'Image.gz'), '--ramdisk', str(staging / 'ramdisk'),
+               '--dtb', str(staging / 'dtb'), '--pagesize', '2048',
+               '--kernel_offset', hex(header['kernel_addr']),
+               '--ramdisk_offset', hex(header['ramdisk_addr']),
+               '--tags_offset', hex(header['tags_addr']), '--dtb_offset', hex(header['dtb_addr']),
+               '--board', header['board'], '--cmdline', header['cmdline'],
+               '--os_version', os_version, '--os_patch_level', patch, '-o', str(image)]
+    subprocess.run(command, check=True)
+    with image.open('ab') as file:
+        file.write(b'SEANDROIDENFORCE')
+    salt = sha(image.read_bytes())
+    subprocess.run([sys.executable, str(avbtool), 'add_hash_footer', '--image', str(image),
+                    '--partition_name', 'boot', '--partition_size', str(len(stock)),
+                    '--algorithm', 'NONE', '--salt', salt], check=True)
+    subprocess.run([sys.executable, str(avbtool), 'verify_image', '--image', str(image)], check=True)
+    diagnostic = image.read_bytes()
+    after = unpack(diagnostic)
+    for key, value in header.items():
+        if key != 'parts' and after[key] != value:
+            raise ValueError(f'boot header changed: {key}')
+    if gzip.decompress(after['parts']['kernel']) != raw or any(
+            after['parts'][key] != header['parts'][key] for key in ['ramdisk', 'dtb']):
+        raise ValueError('boot component round-trip failed')
+    if len(diagnostic) != len(stock) or diagnostic[-64:-60] != b'AVBf':
+        raise ValueError('partition size or AVB footer mismatch')
+    (output / 'restore').mkdir()
+    original = output / 'restore' / 'boot.img'
+    original.write_bytes(stock)
+    package_tar(output / 'a31-diagnostic-boot.tar', diagnostic)
+    package_tar(output / 'a31-original-boot-restore.tar', stock)
+    report = {'device': 'SM-A315F', 'firmware_template': 'A315FXXU5DXJ1',
+              'kind': 'diagnostic only; no XNU handoff', 'native_boot_tested': False,
+              'writes_performed_on_phone': False, 'target_partition': 'BOOT only',
+              'stock_sha256': sha(stock), 'diagnostic_sha256': sha(diagnostic),
+              'image_sha256': sha(raw), 'avb_algorithm': 'NONE (unsigned)',
+              'requires_unlocked_bootloader': True,
+              'header_and_original_ramdisk_dtb_preserved': True,
+              'manual_return_to_recovery_required': True,
+              'source_image_manifest': metadata}
+    (output / 'manifest.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
+    print(json.dumps(report, indent=2))
+    return report
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--stock-boot', type=Path, required=True)
+    parser.add_argument('--native-dir', type=Path, required=True)
+    parser.add_argument('--out', type=Path, required=True)
+    parser.add_argument('--mkbootimg', type=Path, required=True)
+    parser.add_argument('--avbtool', type=Path, required=True)
+    args = parser.parse_args()
+    build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
+          args.mkbootimg.resolve(), args.avbtool.resolve())

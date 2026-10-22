@@ -213,6 +213,7 @@ void diag_main(uintptr_t fdt_address, uint64_t entry_el)
     log_ready = 1;
 #endif
     text("\n[A31-DIAG v1] BEGIN\n");
+    text("BUILD=" DIAG_BUILD_ID "\n");
     field("ENTRY_EL=", entry_el); field("CURRENT_EL=", READ(CurrentEL) >> 2);
     field("MIDR=", READ(midr_el1)); field("MPIDR=", READ(mpidr_el1));
     field("SCTLR_EL1=", READ(sctlr_el1)); field("FDT=", fdt_address);

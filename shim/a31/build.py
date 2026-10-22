@@ -17,6 +17,11 @@ def build(out, cc='clang', qemu=False):
     compiler = shutil.which(cc) or str(Path(cc).resolve())
     suffix = '.exe' if Path(compiler).suffix == '.exe' else ''
     tools = Path(compiler).parent
+    try:
+        build_id = subprocess.check_output(['git', '-C', str(source), 'rev-parse', 'HEAD'],
+                                           text=True, stderr=subprocess.DEVNULL).strip()
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        build_id = 'unversioned'
     objcopy = tools / ('llvm-objcopy' + suffix)
     readelf = tools / ('llvm-readelf' + suffix)
     if not objcopy.is_file():
@@ -28,7 +33,8 @@ def build(out, cc='clang', qemu=False):
              '-fno-stack-protector', '-fno-unwind-tables',
              '-fno-asynchronous-unwind-tables', '-fno-jump-tables',
              '-mgeneral-regs-only', '-mstrict-align', '-mno-outline-atomics',
-             '-Wall', '-Wextra', '-Werror', f'-DDIAG_QEMU={int(qemu)}']
+             '-Wall', '-Wextra', '-Werror', f'-DDIAG_QEMU={int(qemu)}',
+             f'-DDIAG_BUILD_ID="{build_id}"']
     objects = []
     for name in ['start.S', 'support.c', 'diag.c']:
         obj = out / (Path(name).stem + '.o')
@@ -57,7 +63,7 @@ def build(out, cc='clang', qemu=False):
     (out / 'Image.gz').write_bytes(gzip.compress(data, mtime=0))
     metadata = {'kind': 'A31 diagnostic shim, not XNU', 'qemu': qemu,
                 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
-                'native_boot_tested': False, 'text_offset': '0x80000',
+                'native_boot_tested': False, 'build_id': build_id, 'text_offset': '0x80000',
                 'image_flags': image_flags}
     (out / 'build.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(metadata, indent=2))
