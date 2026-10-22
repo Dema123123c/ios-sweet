@@ -8,6 +8,13 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- Latest photo is the actual WARNING selection screen. English lists
+  VolUp Continue / VolDown Cancel / Side key Show Barcode; Chinese lower
+  block additionally explicitly lists long VolUp = device unlock mode.
+  User was instructed to hold VolUp 2-3s, then ONLY if next screen says
+  Unlock bootloader, use VolUp to confirm the already approved unlock/wipe.
+  Do not confirm Lock bootloader. Await result; no actual unlock or wipe
+  completion has been observed yet. No new phone image write performed.
 - Latest user photo confirms normal Downloading screen (no AVB error),
   Korean/English instructions and VolumeDown+Side >7s cancel/restart.
   OEM LOCK/KG/RMM fields are NOT shown in this UI. Do not ask user to
