@@ -1,0 +1,225 @@
+#include "support.h"
+
+#define READ(reg) ({ uint64_t v; __asm__ volatile("mrs %0, " #reg : "=r"(v)); v; })
+#define WRITE(reg, value) __asm__ volatile("msr " #reg ", %0" :: "r"((uint64_t)(value)) : "memory")
+#define BARRIER() __asm__ volatile("dsb sy; isb" ::: "memory")
+static uint32_t read32(uintptr_t p) { return *(volatile uint32_t *)p; }
+static uint64_t read64(uintptr_t p) { return *(volatile uint64_t *)p; }
+static void write32(uintptr_t p, uint32_t v) { *(volatile uint32_t *)p = v; }
+#if !DIAG_QEMU
+static struct sec_log log_ring;
+static int log_ready;
+#endif
+static uint64_t frequency;
+static volatile uint32_t timer_irqs, other_irqs;
+extern char _head[], _end[];
+
+static void putc(char c)
+{
+#if DIAG_QEMU
+    for (unsigned i = 0; i < 1000000 && (read32(0x09000018) & 0x20); i++) {}
+    write32(0x09000000, (uint32_t)(unsigned char)c);
+#else
+    if (log_ready) sec_log_putc(&log_ring, c);
+#endif
+}
+static void text(const char *s) { while (*s) putc(*s++); BARRIER(); }
+static void hex(uint64_t v)
+{
+    static const char digits[] = "0123456789abcdef";
+    text("0x");
+    for (int i = 60; i >= 0; i -= 4) putc(digits[(v >> i) & 15]);
+    BARRIER();
+}
+static void field(const char *name, uint64_t value) { text(name); hex(value); text("\n"); }
+static __attribute__((noreturn)) void finish(int success)
+{
+    __asm__ volatile("msr daifset, #15" ::: "memory");
+#if DIAG_QEMU
+    uint64_t result[] = { 0x20026, success ? 0 : 1 };
+    register uint64_t x0 __asm__("x0") = 0x20;
+    register uint64_t x1 __asm__("x1") = (uintptr_t)result;
+    __asm__ volatile("hlt #0xf000" : "+r"(x0), "+r"(x1) :: "memory");
+#else
+    (void)success;
+#endif
+    for (;;) __asm__ volatile("wfe");
+}
+static __attribute__((noreturn)) void fail(const char *why)
+{
+    text("[A31-DIAG] FAIL "); text(why); text("\n"); finish(0);
+}
+static uint64_t now(void) { __asm__ volatile("isb"); return READ(cntpct_el0); }
+static int wait_clear(uintptr_t address, uint32_t mask)
+{
+    uint64_t start = now();
+    while (read32(address) & mask) if (now() - start > frequency) return 0;
+    return 1;
+}
+
+static uint64_t l1[2048] __attribute__((aligned(16384)));
+static uint64_t identity[2048] __attribute__((aligned(16384)));
+static uint64_t alias_l2[2048] __attribute__((aligned(16384)));
+static uint64_t alias_l3[2048] __attribute__((aligned(16384)));
+static uint64_t probe_page[2048] __attribute__((aligned(16384)));
+
+static int probe_mmu(uint64_t ram_base, uint64_t ram_size)
+{
+    uint64_t mmfr0 = READ(id_aa64mmfr0_el1);
+    field("MMFR0_EL1=", mmfr0);
+    unsigned granule = (unsigned)((mmfr0 >> 20) & 15);
+    if (granule != 1 && granule != 2) return 0;
+    uint64_t old_sctlr = READ(sctlr_el1), old_tcr = READ(tcr_el1);
+    uint64_t old_ttbr0 = READ(ttbr0_el1), old_mair = READ(mair_el1);
+    if (old_sctlr & 5) return 0;
+    uint64_t ips = mmfr0 & 15;
+    if (ips > 5) ips = 5;
+    for (unsigned i = 0; i < 2048; i++) {
+        uint64_t p = (uint64_t)i << 25;
+        uint64_t attributes = (1ULL << 10) | 1;
+        if (p >= ram_base && p + (1ULL << 25) <= ram_base + ram_size)
+            attributes |= 3ULL << 8;
+        else attributes |= (1ULL << 2) | (3ULL << 53);
+        identity[i] = p | attributes;
+    }
+    l1[0] = (uintptr_t)identity | 3;
+    l1[1] = (uintptr_t)alias_l2 | 3;
+    alias_l2[0] = (uintptr_t)alias_l3 | 3;
+    alias_l3[0] = (uintptr_t)probe_page | 3 | (1ULL << 10) | (3ULL << 8);
+    WRITE(mair_el1, 0x0044);
+    WRITE(tcr_el1, 24 | (2ULL << 14) | (3ULL << 12) | (1ULL << 23) | (ips << 32));
+    WRITE(ttbr0_el1, (uintptr_t)l1);
+    BARRIER();
+    __asm__ volatile("tlbi vmalle1; dsb sy; isb" ::: "memory");
+    probe_page[0] = 0xa3116a55c0decafeULL;
+    BARRIER();
+    WRITE(sctlr_el1, old_sctlr | 1);
+    __asm__ volatile("isb" ::: "memory");
+    volatile uint64_t *alias = (volatile uint64_t *)0x1000000000ULL;
+    int passed = *alias == probe_page[0];
+    *alias = 0xa3116a75f00dbeefULL;
+    BARRIER();
+    passed &= probe_page[0] == 0xa3116a75f00dbeefULL;
+    __asm__ volatile("at s1e1r, %0; isb" :: "r"((uintptr_t)alias) : "memory");
+    uint64_t translated = READ(par_el1);
+    passed &= !(translated & 1) &&
+        ((translated & 0x0000fffffffff000ULL) == (uintptr_t)probe_page);
+    WRITE(sctlr_el1, old_sctlr);
+    BARRIER();
+    __asm__ volatile("tlbi vmalle1; dsb sy; isb" ::: "memory");
+    WRITE(tcr_el1, old_tcr); WRITE(ttbr0_el1, old_ttbr0); WRITE(mair_el1, old_mair);
+    BARRIER();
+    field("MMU16K_PAR=", translated);
+    return passed;
+}
+
+static int probe_timer(const struct dt_view *dt)
+{
+    uint32_t node;
+    uint64_t gicd, gicd_size, gicr, gicr_size;
+    if (!dt_compatible(dt, "arm,gic-v3", &node) ||
+        !dt_reg(dt, node, 0, &gicd, &gicd_size) ||
+        !dt_reg(dt, node, 1, &gicr, &gicr_size) ||
+        gicd_size < 0x10000 || gicr_size < 0x20000 || gicr_size > 0x1000000) return 0;
+#if DIAG_QEMU
+    if (gicd != 0x08000000 || gicr != 0x080a0000) return 0;
+#else
+    if (gicd != 0x0c000000 || gicr != 0x0c040000) return 0;
+#endif
+    field("GICD=", gicd); field("GICR=", gicr);
+    uint64_t mpidr = READ(mpidr_el1);
+    uint32_t affinity = (uint32_t)(mpidr & 0xffffff) | (uint32_t)((mpidr >> 8) & 0xff000000);
+    uintptr_t redistributor = 0;
+    for (uint64_t p = gicr; p - gicr <= gicr_size - 0x20000;) {
+        uint64_t type = read64(p + 8);
+        if ((uint32_t)(type >> 32) == affinity) { redistributor = p; break; }
+        if (type & 0x10) break;
+        p += type & 2 ? 0x40000 : 0x20000;
+    }
+    if (!redistributor) return 0;
+    WRITE(icc_sre_el1, READ(icc_sre_el1) | 1); BARRIER();
+    if (!(READ(icc_sre_el1) & 1)) return 0;
+    write32(redistributor + 0x14, read32(redistributor + 0x14) & ~2U);
+    if (!wait_clear(redistributor + 0x14, 4)) return 0;
+    uintptr_t sgi = redistributor + 0x10000;
+    write32(sgi + 0x180, 1U << 27);
+    write32(sgi + 0x80, read32(sgi + 0x80) | (1U << 27));
+    write32(sgi + 0xd00, read32(sgi + 0xd00) & ~(1U << 27));
+    *(volatile uint8_t *)(sgi + 0x400 + 27) = 0x80;
+    write32(sgi + 0xc04, read32(sgi + 0xc04) & ~(3U << 22));
+    write32(sgi + 0x100, 1U << 27);
+    write32(gicd, read32(gicd) | 0x11);
+    if (!wait_clear(gicd, 1U << 31)) return 0;
+    WRITE(icc_ctlr_el1, READ(icc_ctlr_el1) & ~2ULL);
+    WRITE(icc_pmr_el1, 0xff); WRITE(icc_bpr1_el1, 0); WRITE(icc_igrpen1_el1, 1);
+    WRITE(cntv_tval_el0, frequency / 100); WRITE(cntv_ctl_el0, 1); BARRIER();
+    uint64_t start = now();
+    __asm__ volatile("msr daifclr, #2" ::: "memory");
+    while (timer_irqs < 3 && now() - start < frequency) {}
+    __asm__ volatile("msr daifset, #2" ::: "memory");
+    WRITE(cntv_ctl_el0, 0); write32(sgi + 0x180, 1U << 27); BARRIER();
+    field("VTIMER_IRQS=", timer_irqs); field("OTHER_IRQS=", other_irqs);
+    return timer_irqs >= 3 && !other_irqs;
+}
+void diag_exception(uint64_t slot)
+{
+    if (slot == 5) {
+        uint64_t interrupt = READ(icc_iar1_el1);
+        unsigned id = interrupt & 0xffffff;
+        if (id >= 1020 && id <= 1023) return;
+        if (id == 27) { timer_irqs++; WRITE(cntv_tval_el0, frequency / 100); }
+        else other_irqs++;
+        WRITE(icc_eoir1_el1, interrupt);
+        __asm__ volatile("isb");
+        return;
+    }
+    field("EXCEPTION_SLOT=", slot); field("ESR_EL1=", READ(esr_el1));
+    field("ELR_EL1=", READ(elr_el1)); field("FAR_EL1=", READ(far_el1));
+    fail("exception");
+}
+
+void diag_main(uintptr_t fdt_address, uint64_t entry_el)
+{
+    struct dt_view dt;
+    uint32_t node;
+    uint64_t base, size, ram_base, ram_size;
+    if ((fdt_address & 7) || fdt_address < 0x40000000 ||
+        fdt_address > 0x140000000ULL - 0x200000 ||
+        !dt_open(&dt, (const void *)fdt_address, 0x200000)) fail("FDT bounds");
+#if DIAG_QEMU
+    if (!dt_compatible(&dt, "linux,dummy-virt", &node) || node != dt.structure)
+        fail("QEMU platform mismatch");
+#else
+    if (!dt_compatible(&dt, "mediatek,MT6768", &node) || node != dt.structure ||
+        !dt_reserved(&dt, "sec-log-reserve-memory@", &node) ||
+        !dt_reg(&dt, node, 0, &base, &size) || base != 0x46c00000 || size != 0x200000 ||
+        ((uintptr_t)_head < base + size && (uintptr_t)_end > base) ||
+        (fdt_address < base + size && fdt_address + dt.size > base) ||
+        !sec_log_bind(&log_ring, (void *)(uintptr_t)base, size)) finish(0);
+    log_ready = 1;
+#endif
+    text("\n[A31-DIAG v1] BEGIN\n");
+    field("ENTRY_EL=", entry_el); field("CURRENT_EL=", READ(CurrentEL) >> 2);
+    field("MIDR=", READ(midr_el1)); field("MPIDR=", READ(mpidr_el1));
+    field("SCTLR_EL1=", READ(sctlr_el1)); field("FDT=", fdt_address);
+    frequency = READ(cntfrq_el0); field("CNTFRQ=", frequency);
+    if (frequency < 1000000 || frequency > 1000000000) fail("timer frequency");
+    /* Device-type lookup includes unit-addressed memory nodes on QEMU. */
+    if (!dt_compatible(&dt, "arm,gic-v3", &node)) fail("no GICv3");
+    (void)base; (void)size;
+#if DIAG_QEMU
+    ram_base = 0x40000000; ram_size = 0x20000000;
+#else
+    ram_base = 0x40000000; ram_size = 0x100000000;
+    unsigned part = (unsigned)((READ(midr_el1) >> 4) & 0xfff);
+    if ((READ(midr_el1) >> 24) != 0x41 || (part != 0xd05 && part != 0xd0a))
+        fail("unexpected CPU");
+#endif
+    if ((uintptr_t)_head < ram_base || (uintptr_t)_end > ram_base + ram_size)
+        fail("shim outside RAM");
+    if (!probe_mmu(ram_base, ram_size)) fail("16K translation");
+    text("MMU16K PASS\n");
+    if (!probe_timer(&dt)) fail("GICv3/virtual timer");
+    text("VTIMER PASS\n[A31-DIAG] PASS\n");
+    finish(1);
+}

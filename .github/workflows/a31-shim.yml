@@ -1,0 +1,44 @@
+name: a31-shim
+on:
+  workflow_dispatch:
+  push:
+    branches: [a31-bringup]
+    paths:
+      - 'shim/a31/**'
+      - '.github/workflows/a31-shim.yml'
+concurrency:
+  group: a31-shim-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  diagnostics:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang lld llvm qemu-system-arm
+      - name: Parser and log-ring tests with address and undefined-behavior sanitizers
+        run: |
+          mkdir -p research/a31-diag
+          PYTHONPATH=tools python3 -c "from pathlib import Path; from test_a31 import fixture; Path('research/a31-diag/fixture.dtb').write_bytes(fixture())"
+          clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/support.c shim/a31/host_test.c -o research/a31-diag/host-test
+          research/a31-diag/host-test research/a31-diag/fixture.dtb
+      - name: Build native diagnostic
+        run: python3 shim/a31/build.py --out research/a31-diag/native
+      - name: Build QEMU diagnostic and test EL1 and EL2 entry
+        run: |
+          python3 shim/a31/build.py --qemu --out research/a31-diag/qemu
+          python3 shim/a31/run_qemu.py --image research/a31-diag/qemu/Image --out research/a31-diag/test-results
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: a31-shim-diagnostics
+          path: |
+            research/a31-diag/native/
+            research/a31-diag/qemu/
+            research/a31-diag/test-results/
+          retention-days: 7

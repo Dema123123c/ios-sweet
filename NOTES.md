@@ -48,6 +48,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   succeeds (2,097,140 bytes, private capture). A shim could potentially
   use reserved logging memory, but the format, recovery preservation and
   native-kernel output path are NOT implemented or validated.
+- Diagnostic shim implementation now lives in `shim/a31/` (separate from
+  the Qualcomm shim). Its native Image compiles with NDK clang; it has
+  no XNU handoff yet. It verifies the MT6768 FDT and the 0x46c00000/2MiB
+  Samsung sec-log reservation before writing RAM, appends the sec_log.c
+  LOGM ring format, tests a real 16KiB VA alias and virtual timer IRQ 27,
+  then halts. The phone has NOT run this code. The a31-shim workflow
+  will test portable parser/log code with sanitizers and EL1/EL2 paths
+  in QEMU virt, with a separate PL011/semihosting build. No phone image
+  has been flashed. QEMU success will not establish hardware success.
 
 The handoffs below belong to the original Redmi work; their destructive
 operation approvals do not authorize changes to the Samsung phone.
