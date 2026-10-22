@@ -27,9 +27,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   public fork https://github.com/Dema123123c/ios-sweet was created in the
   user's signed-in browser. Source branch is locally `a31-bringup`, first
   implementation commit c64264c. GitHub CLI 2.103.0 is checksum-verified
-  in ignored `research/gh-cli/bin/gh.exe`; browser authorization is pending.
-  No source push or CI run yet. Workflow now saves the build log, runs
-  the eight host tests for A31 and requires Xcode 15 explicitly. The
+  in ignored `research/gh-cli/bin/gh.exe`; Dema123123c is authenticated
+  through the Windows credential store. Branch `a31-bringup` is pushed
+  to remote `a31fork` (origin is still the upstream; do not push origin).
+  First CI run 39821518791 builds commit 62ac3e2 on macos-14:
+  https://github.com/Dema123123c/ios-sweet/actions/runs/39821518791
+  At this checkpoint the eight host tests, source fetch and Xcode/deps
+  steps passed; Build is in progress. No compile success or phone boot
+  confirmed yet. Workflow defaults to A31 and triggers on patch/workflow
+  pushes to a31-bringup. It saves the build log and requires Xcode 15. The
   macos-14 image has an announced 2026-11-02 retirement; future builds
   need a compatible runner or a verified toolchain update.
   The user has not authorized public publication of device dumps
