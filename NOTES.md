@@ -86,7 +86,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   establishes the reboot request only, not diagnostic execution. User has
   been given the A31 button sequence to return to TWRP. BOOT IS CURRENTLY
   THE DIAGNOSTIC IMAGE; original BOOT restoration remains required.
-- NEXT: return to intact TWRP using buttons, read
+- Hardware attempt result (user report, text/photo not captured yet): phone
+  displays an error containing "partiions tee1 reason recovery" and
+  "public key", with more text. Exact error and boot mode remain UNKNOWN;
+  do not claim a CPU/MMU/timer result or infer that TEE1 was changed. Only
+  BOOT was written. ADB currently has no device; no additional write or
+  reboot command has been sent. User asked to report exact first lines
+  and try the known TWRP button sequence. Stock restore image rehashed
+  successfully; Odin remains open as a fallback if TWRP is inaccessible.
+- NEXT PRIORITY: restore the original BOOT. If TWRP returns, first read
   logs before another reboot, restore original BOOT under the approved
   sequence, and verify its full readback hash. Diagnostic
   halts and has no display/USB or XNU handoff; a black/logo screen or
