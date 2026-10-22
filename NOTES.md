@@ -13,9 +13,12 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   OEM LOCK/KG/RMM fields are NOT shown in this UI. Do not ask user to
   transcribe nonexistent fields. Stock Android's locked properties above
   remain the measured state. No phone writes since factory RECOVERY.
-- Pending explicit user question: approve full bootloader unlock on this
-  exact SM-A315F, with ANOTHER DATA WIPE. No unlock instruction/button
-  confirmation has been executed. User must perform physical confirmation.
+- User explicitly APPROVED full bootloader unlock on this exact SM-A315F
+  with ANOTHER DATA WIPE: "Да, разблокируем, данные можно стереть".
+  No unlock button confirmation has been executed yet. User must perform
+  physical confirmation. Currently asked to enter Warning screen with
+  both volume keys + USB and report whether "Volume up long press:
+  Device unlock mode" is present. Do not short-press Continue first.
   Existing approvals for BOOT/RECOVERY and experimental-phone context
   are not treated as this new wipe approval. If approved, enter the
   Warning screen first and inspect its actual unlock option before
