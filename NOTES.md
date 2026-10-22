@@ -8,6 +8,21 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- USER EXPLICITLY PAUSED WORK UNTIL TOMORROW (2026-10-23): messages
+  "короче давай завтра" / "продолжем" together mean continue tomorrow.
+  No more tests/phone writes today. Closing state only.
+- Latest ADB check: NO device listed. V4 diagnostic BOOT f1ea9219...2f53a13
+  remains installed from e09f1c3 handoff; no TWRP return observation or
+  native result yet. Do NOT claim stock BOOT restored after this newest test.
+  Private operation research/a31-pstore-native-attempt/operation.json
+  restore_pending=true. Existing original BOOT and exact restore TAR ready.
+- User must leave phone in TWRP or use TWRP Reboot -> Power Off if it loops;
+  no remote poweroff is possible without ADB. If TWRP reached, logs should
+  be collected BEFORE another reboot to preserve newest native evidence.
+  Resume only on user instruction, first check current phone state and
+  collect expected-build d64a5f4a2bca33eeb95f4b0f69d01d2249b66b76 logs.
+  All sources/checks/artifacts/backup facts recorded below. Goal incomplete;
+  native kernel execution unproven. No scheduled automation created.
 - CURRENT LIVE NATIVE V4 TEST RUNNING: newly reviewed diagnostic
   f1ea921995dae51c58078dd1f971b99ab179b9ca5c809045780ad24f92f53a13
   written ONLY BOOT /dev/block/mmcblk0p35. Fresh point-of-write FDT AND
