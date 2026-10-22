@@ -94,6 +94,16 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   reboot command has been sent. User asked to report exact first lines
   and try the known TWRP button sequence. Stock restore image rehashed
   successfully; Odin remains open as a fallback if TWRP is inaccessible.
+- User clarified the displayed error: "Partitions: tee1" above "Reason:
+  recovery ... public key used to sign data does not match key in chain
+  partition descriptor (5)" and Samsung vbmeta A315FXXU5DXJ1. This is a
+  user transcription, not a photo; exact punctuation is unverified.
+  ADB remains absent. This identifies an AVB chain-key verification
+  failure mentioning TEE1; it does NOT prove TEE1 corruption or diagnostic
+  execution. No writes to TEE1/vbmeta/recovery were performed in this test.
+  Do not flash or disable other partitions to work around it. User asked
+  again for the actual result of the known TWRP button sequence; if it
+  cannot boot, use Download Mode/Odin to restore the exact original BOOT.
 - NEXT PRIORITY: restore the original BOOT. If TWRP returns, first read
   logs before another reboot, restore original BOOT under the approved
   sequence, and verify its full readback hash. Diagnostic
