@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- After the long-VolUp instruction, user says only Download Mode appeared
+  and asks to check whether unlocked. ADB absent; Windows Samsung USB is
+  present. Read-only samloader detect --verbose / vcom succeeded detecting
+  Download Mode but returned no OEM LOCK/unlock-state data. Private log
+  research/a31-download-detect-after-unlock-attempt.txt. No flashing session
+  or partition write used for this query. Unlock remains UNCONFIRMED.
+  User asked to exit Download Mode with Power+VolDown until black and
+  release BOTH, then report Android/setup; re-read actual stock properties
+  over ADB if available. Explained OEM LOCK ON/OFF and OEM-unlock allowed
+  versus an actually unlocked bootloader. No new approval is needed for
+  the already approved unlock/wipe, but no success may be inferred.
 - Latest photo is the actual WARNING selection screen. English lists
   VolUp Continue / VolDown Cancel / Side key Show Barcode; Chinese lower
   block additionally explicitly lists long VolUp = device unlock mode.
