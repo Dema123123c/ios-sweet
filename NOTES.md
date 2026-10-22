@@ -8,6 +8,29 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CURRENT LIVE NATIVE V4 TEST RUNNING: newly reviewed diagnostic
+  f1ea921995dae51c58078dd1f971b99ab179b9ca5c809045780ad24f92f53a13
+  written ONLY BOOT /dev/block/mmcblk0p35. Fresh point-of-write FDT AND
+  getprop confirm unlocked/orange; pstore sysfs profile freshly rechecked;
+  original BOOT and both vbmetas read/verified BEFORE write. Sync and FULL
+  33554432-byte raw readback match new diagnostic. adb reboot issued.
+  Private state research/a31-pstore-native-attempt/operation.json.
+- User NOW ASKED acknowledge actual Power continuation warning if shown,
+  wait30s after Samsung splash, then manual TWRP return and report whether
+  reboot loop remains. Await response. Do not infer success from splash.
+- NEXT REQUIRED: collect NEW logs using UPDATED tools/a31_diag_log.py
+  with expected build d64a5f4a2bca33eeb95f4b0f69d01d2249b66b76. Crucially
+  read /sys/fs/pstore/console-ramoops (Samsung plain filename), alongside
+  sec_log and last_kmsg; indexed fallback absent is expected here. Check
+  ENTRY_EL, MIDR, WDT_MODE_BEFORE/AFTER, MMU16K and timer/session PASS/FAIL.
+  Hardware persistence and WDT hypothesis still untested until actual log.
+- Original restore template remains outputs/a31-diagnostic-pstore-v4/restore/boot.img
+  SHA af9ef426...ba176f1, exact restore TAR ready. Operation restore_pending=true.
+  Restore when needed to stop a failed loop, but phone must remain TWRP for
+  development rather than booting Android as an end result. User final goal
+  ONLY NATIVE iOS, no Android UI/launcher substitute. No other partition
+  writes, no vbmeta/TEE1/bootloader/Data changes. If no TWRP, use known
+  original BOOT Odin restore under prior authorization.
 - NEW REVIEWED DIAGNOSTIC PREPARED, about to test BOOT only under ongoing
   user-approved experimental A31 bring-up. Source
   d64a5f4a2bca33eeb95f4b0f69d01d2249b66b76, CI 39848839009 SUCCESS
