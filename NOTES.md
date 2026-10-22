@@ -8,6 +8,16 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- LATEST USER REPORT: stock Android recovery opened after factory RECOVERY
+  restoration. User independently selected factory reset, despite earlier
+  instruction not to wipe. Record data state accurately: a USER-INITIATED
+  RESET HAS NOW OCCURRED; do not say data remained intact. No agent-issued
+  userdata write/wipe command was performed. User briefly perceived an
+  apple-like image, then reports Android/Samsung boot logo. This is not
+  evidence of iOS; restored factory BOOT/RECOVERY have no XNU payload.
+  Follow-up confirms STILL SAMSUNG LOGO, not welcome/home yet. ADB/PnP
+  currently show no phone. User advised to leave the first post-reset boot
+  uninterrupted for 5-10 minutes. Normal Android boot remains unconfirmed.
 - New remaining error confirmed by user after BOOT restoration: Partitions
   tee1, recovery/public-key mismatch; BOOT hash error no longer reported.
   Official Samsung FUS (samloader-rs 2.2.0, GitHub release SHA256 verified)
