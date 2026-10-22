@@ -8,6 +8,22 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CRITICAL CORRECTION FROM STOCK ANDROID: user finished setup and reenabled
+  USB debugging. Same A31/firmware verified over authorized ADB and
+  sys.boot_completed=1. Canonical stock properties show ro.boot.flash.locked=1,
+  ro.boot.vbmeta.device_state=locked, verifiedbootstate=green,
+  veritymode=enforcing, sys.oem_unlock_allowed=1, warranty_bit=1. Earlier
+  claim of unlocked bootloader was incorrect/unverified. OEM unlock
+  ALLOWED is not an actual unlocked state. Evidence private file:
+  research/a31-post-recovery-lock-state.txt. Do not flash custom/vbmeta
+  based on the earlier claim. User has NOT approved bootloader unlock
+  or another wipe. Stock Android is now confirmed booted and usable.
+- Sent `adb reboot download` successfully ONLY to read OEM LOCK/KnoxGuard
+  on its download screen. Await screen status. Do not long-press VolUp or
+  unlock without a new concrete approval; unlock would erase data again.
+- Parent-preflight fix commit 70e6c4616504f1ac7a571133dea3eb96c6bcbe69:
+  CI 39834622014 SUCCESS (25 Python tests, C ASan/UBSan, native build,
+  both QEMU entry/MMU16K/timer checks). No native hardware success implied.
 - LATEST CONFIRMED OUTCOME: user now reports the INITIAL ANDROID SCREEN,
   superseding the Samsung-logo-only observation below. Stock recovery
   booted and Android reached setup after the user-initiated factory reset.
@@ -90,8 +106,9 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 - Do not repeat the rejected unsigned diagnostic BOOT. No evidence the
   native shim ran. Resolve parent vbmeta verification before another test.
 
-- Target confirmed over ADB: SM-A315F, MT6768, Android 12, A315FXXU5DXJ1,
-  unlocked. User explicitly approved installing `Downloads/TWRP.tar` in
+- Target confirmed over ADB: SM-A315F, MT6768, Android 12, A315FXXU5DXJ1.
+  Earlier unlocked-state claim was incorrect; see stock Android correction
+  above. User explicitly approved installing `Downloads/TWRP.tar` in
   RECOVERY. Odin 3.14.1 patched reported PASS; TWRP 3.7.1_12-1 boots.
 - Current phone state at this milestone: TWRP, ordinary ADB connected.
   Shell is uid 2000 even though sync runs as root; use adb pull, not
