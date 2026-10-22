@@ -45,9 +45,9 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   (keep them private and out of Git).
 - Read-only diagnostic finding: recovery CONFIG_PSTORE_RAM and
   CONFIG_SEC_DEBUG_LAST_KMSG are enabled. `adb pull /proc/last_kmsg`
-  succeeds (2,097,140 bytes, private capture). A shim could potentially
-  use reserved logging memory, but the format, recovery preservation and
-  native-kernel output path are NOT implemented or validated.
+  succeeds (2,097,140 bytes, private capture). Native shim logging now
+  implements the Samsung LOGM ring in reserved sec-log RAM; preservation
+  across the actual phone boot cycle is still unvalidated.
 - Diagnostic shim implementation now lives in `shim/a31/` (separate from
   the Qualcomm shim). Its native Image compiles with NDK clang; it has
   no XNU handoff yet. It verifies the MT6768 FDT and the 0x46c00000/2MiB
@@ -57,6 +57,30 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   will test portable parser/log code with sanitizers and EL1/EL2 paths
   in QEMU virt, with a separate PL011/semihosting build. No phone image
   has been flashed. QEMU success will not establish hardware success.
+- Diagnostic CI 39827253373 SUCCESS at 4279c64: 21 Python tests, C host
+  tests with ASan/UBSan, and EL1/EL2 QEMU entry/16KiB VA alias/three timer
+  IRQ tests pass. The absent QEMU NIC ROM and GICD DS=1 Group 1 selection
+  failures from the first two runs were fixed. 39826354817 also passed
+  before source build IDs were added to each diagnostic log session.
+- Native CI Image SHA256:
+  ff73f8cfcfaed87d7d6a039cfcad4506a11b7ff99221c4a8eb3aff9d2ce7bdeb.
+  Private phone image: ../../outputs/a31-diagnostic-v1/diagnostic/boot.img
+  (33,554,432 bytes); SHA256
+  4d0f5a36873796bc6401878a1885bf57de124993de4f86732d82234cf18485cf.
+  Exact stock BOOT restore image and Odin tar are in that private folder.
+  Packager verifies pinned AOSP tools, the Samsung Android DT table,
+  original DTB/ramdisk/addresses, unsigned AVB hash footer and tar round
+  trips. BOOT was pulled again and still matches af9ef426... No writes.
+- `tools/a31_diag_log.py` reads last_kmsg and sec_log through ADB sync,
+  reconstructs the ring and checks the source build ID. Pre-test baseline
+  research/a31-diag-baseline-4279c64 has no matching session. Expected ID:
+  4279c64e605cf5c5de4799f9962d3e6756b5f6eb.
+- NEXT REQUIRES USER APPROVAL: write the concrete diagnostic BOOT, boot
+  it, return to intact TWRP using buttons, read logs, restore the original
+  BOOT and verify its hash. Ask before each partition write. Diagnostic
+  halts and has no display/USB or XNU handoff; a black/logo screen or
+  firmware watchdog restart is possible. Preserve Data, vbmeta, RECOVERY,
+  bootloaders and partition layout.
 
 The handoffs below belong to the original Redmi work; their destructive
 operation approvals do not authorize changes to the Samsung phone.
