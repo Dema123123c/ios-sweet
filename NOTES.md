@@ -8,6 +8,30 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- NEW REVIEWED DIAGNOSTIC PREPARED, about to test BOOT only under ongoing
+  user-approved experimental A31 bring-up. Source
+  d64a5f4a2bca33eeb95f4b0f69d01d2249b66b76, CI 39848839009 SUCCESS
+  (35 Python tests, C ASan/UBSan, native build, both QEMU entries). Downloaded
+  research/a31-pstore-ci-d64a5f4. Native Image SHA
+  861176056bc95a881f73f4deb4dd3042e82f3aa13c25637a63a8ebff0c283dca.
+- Private packaged outputs/a31-diagnostic-pstore-v4/diagnostic/boot.img
+  SHA256 f1ea921995dae51c58078dd1f971b99ab179b9ca5c809045780ad24f92f53a13,
+  33554432 bytes. Original BOOT restore included; round-trip TARs checked.
+  Fresh capture research/a31-pstore-preflight has two independent matching
+  reads, original BOOT af9ef426..., unchanged vbmetas, live unlocked/orange
+  FDT and freshly pulled ECC-free pstore sysfs profile. Parent signature
+  verified; original parent BOOT mismatch explicitly recorded as unlocked
+  test, no vbmeta writes. Native acceptance/persistence/WDT still UNTESTED.
+- Expected log build d64a5f4a2bca33eeb95f4b0f69d01d2249b66b76. New baseline
+  research/a31-pstore-d64-baseline has no matching sessions in any source,
+  successfully reads actual console-ramoops. Indexed console file absent.
+- Next test preflight must repull live FDT and pstore parameters immediately
+  before write, demand unlocked/orange and exact profile, verify stock BOOT
+  before change, then write ONLY BOOT p35, sync/full readback, reboot.
+  User gets manual Power warning continuation + wait30s then return TWRP.
+  Read NEW logs incl pstore, then restore known BOOT unless user directs
+  otherwise. Keep phone TWRP; native iOS is final goal. Never infer execution
+  from splash alone. No unchanged 4d0f test again.
 - LIVE PSTORE BACKEND VERIFIED: ordinary reboot returned automatically
   to TWRP 3.7.0_11-1. Privileged adb pull /sys/fs/pstore produced actual
   files console-ramoops (262132 bytes) and pmsg-ramoops-0 (5932 bytes).
