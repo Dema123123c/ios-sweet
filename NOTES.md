@@ -8,6 +8,24 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- USER manually selected and flashed TWRP in Patched Odin. IMPORTANT: the
+  actually selected archive was Downloads/TWRP_Galaxy_A31_7_1.2.2.tar,
+  NOT the prepared package or Downloads/TWRP.tar. It contains ONLY
+  recovery.img, 33554432 bytes, SHA256
+  d8a89533d039c79618b4dffcdc5cdec5949534020b2011088a02b1899bbcd890,
+  different from previously live/working TWRP SHA 1aa8753d...112f2e2.
+  Do not describe this newly flashed variant as identical to the tested one.
+- Observed NEW Odin PASS 00:07 on COM8, AP-only selected actual path above;
+  transfer log recovery.img / RQT_CLOSE / RES OK / succeed 1 failed 0.
+  AutoReboot OFF, RePartition/NandErase/FlashLock OFF, FResetTime ON.
+  Agent did NOT click Start; user initiated the flash. Closed Odin after
+  completed transfer and verified no Odin window remains. ADB still absent.
+- Awaiting user direct recovery entry with USB attached (Power+VolDown
+  until black, immediately Power+VolUp, release Power at logo, hold Up).
+  No Format Data or sideload requested. First verify recovery identity
+  and privileged sync, then collect fresh BOOT/RECOVERY/vbmeta twice.
+  In particular compare newly read RECOVERY against d8a89533...bbcd890,
+  not the older 1aa8753d image. Factory restoration package remains ready.
 - VERIFIED REAL UNLOCK after user-confirmed physical unlock/reset/setup:
   same SM-A315F / A315FXXU5DXJ1, sys.boot_completed=1, flash.locked=0,
   vbmeta.device_state=unlocked, verifiedbootstate=orange, OEM allowed=1.
