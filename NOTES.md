@@ -82,8 +82,11 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   full 33,554,432-byte pull/readback matched 4d0f5a36...18485cf. Original
   backup: research/a31-before-diagnostic-approved.img; diagnostic readback:
   research/a31-diagnostic-written-readback.img (private/ignored).
-  Current state: diagnostic BOOT verified, still in TWRP, not booted yet.
-- NEXT: boot diagnostic once, return to intact TWRP using buttons, read
+  `adb reboot` returned success; ADB then disappeared as expected. This
+  establishes the reboot request only, not diagnostic execution. User has
+  been given the A31 button sequence to return to TWRP. BOOT IS CURRENTLY
+  THE DIAGNOSTIC IMAGE; original BOOT restoration remains required.
+- NEXT: return to intact TWRP using buttons, read
   logs before another reboot, restore original BOOT under the approved
   sequence, and verify its full readback hash. Diagnostic
   halts and has no display/USB or XNU handoff; a black/logo screen or
