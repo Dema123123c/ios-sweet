@@ -8,6 +8,44 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- New remaining error confirmed by user after BOOT restoration: Partitions
+  tee1, recovery/public-key mismatch; BOOT hash error no longer reported.
+  Official Samsung FUS (samloader-rs 2.2.0, GitHub release SHA256 verified)
+  returned exact current build A315FXXU5DXJ1/A315FOXM5DXJ1/A315FXXU5DXJ1/
+  A315FXXU5DXJ1. Decrypted factory ZIP partial was sufficient to extract
+  AP/recovery.img.lz4 from ONLY completed-prefix download blocks. Extractor
+  is private research/extract-a31-stock-prefix.py. Full 6.17GB download
+  intentionally stopped after extraction; partial ZIP is NOT a complete
+  firmware archive. It contains a private resume footer; keep ignored.
+- Factory recovery image is exactly 33,554,432 bytes, SHA256
+  cd760d87a1f2f69a73f8f23ba21d607336fece7d69a950425e208822e1f1d25c.
+  AOSP avbtool verified SHA256_RSA4096 signature and complete payload hash.
+  Embedded key byte-equals saved parent recovery chain key (SHA1 bd8a44f9
+  ...a40d77a); saved parent vbmeta RSA signature also verified. Private
+  reviewed package ../../outputs/a31-stock-recovery-v1/
+  a31-stock-recovery-DXJ1.tar contains ONLY recovery.img; tar roundtrip
+  verified. TWRP backup 1aa8753d...2e2 rehashed and preserved privately.
+- User explicitly approved replacing TWRP with this concrete factory
+  RECOVERY after image/partition question: "есди больше норм вариантов
+  нет делаем". Selected this path to restore the existing signed chain,
+  without vbmeta/TEE1/Data writes. Odin COM8, AP only this recovery tar,
+  Auto Reboot/Nand Erase/Re-Partition/Flash Lock OFF. Factory RECOVERY
+  transfer completed: new log sequence `recovery.img`, `RQT_CLOSE`,
+  `RES OK`, `succeed 1 / failed 0`. A subsequent unexplained second
+  connection attempt stopped at `SetupConnection` only (no further
+  Initialization/PIT/NAND write). Fresh log confirmed this unchanged;
+  Odin closed with Alt+F4 and absence of its window was verified. No
+  second write was performed by that waiting attempt. User now asked
+  to Power+VolDown until black, release BOTH, no VolUp, report Android
+  or stock recovery or new error. Do not wipe if stock recovery appears.
+  POST-RECOVERY-FLASH ANDROID BOOT IS STILL UNVERIFIED.
+- UPDATE AFTER RESTORE: user attempted a normal boot and again reports a
+  red error screen. Exact new Partitions/Reason and whether BOOT hash
+  errors persist are requested, not yet received. Do not claim successful
+  recovery/Android boot. Odin PASS is a transfer result, not readback.
+  Device still has custom TWRP, whose AVB signing key differs from the
+  Samsung recovery chain key. This is a possible remaining verification
+  blocker, not yet proven as the new error. No further phone writes.
 - User successfully entered manual Download Mode; Windows enumerated
   Samsung USB and Odin connected on COM8. The approved original BOOT
   restore was started with AP = a31-original-boot-restore.tar only.
