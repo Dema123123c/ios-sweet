@@ -8,6 +8,25 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V18 POST-REBASE NATIVE TEST STARTED 2026-10-23 14:18:11 UTC; user result
+  pending. Source/session cf64132eaf5c67696eb5200a620f095a91085afd.
+  Kernel CI39966833389 SUCCESS, 17221888B SHA
+  74a217d1255eb58af3dfeeec43c23ff44746c878adc99c553474c0fc99a528cc,
+  reset SMC actual VAfffffe00074855b0. Shim CI39966833403 SUCCESS (65 tests,
+  20 physical exception fixtures and12 loader EL1/EL2 controls verified).
+  Post-rebase actual-kernel QEMU CI39968197929 SUCCESS, ordered stage1/21
+  and REBASE-CHECK PASS. QEMU lacks Samsung SRAM header: RECOVERY FAILED
+  there is expected and does NOT test firmware reset. Native result needed.
+  BOOT outputs/a31-post-rebase-v18/diagnostic/boot.img 32MiB SHA
+  efe9935846af0e1885be787a6cf1ab051a7c0215b8f25be653397345023f396d.
+  Image5e5abe9a91d307435a3c4b2f1cc4ea0273b6925c947f230fc30508f6da515c3c,
+  payload4892498eda5f28ef79506a45c20ad9ddf9ec5c14354253264c41278da3ad7810.
+  Fresh V17/recovery/vbmeta/unlocked/pstore gates PASS; write/readback full
+  BOOT PASS, recovery/vbmetas unchanged. No BRK/watchdog. Private evidence
+  research/a31-post-rebase-attempt; native logs still to collect into new
+  research/a31-v18-post-rebase-logs using a31_diag_log.py expected cf64132.
+  User prompt sent: SHORT Power warning, repeat after auto reset, wait40s.
+  Do not infer native success from emulator or automatic TWRP alone.
 - NEXT POST-REBASE SOURCE PREPARED: patch0086 lets validated stage1 return
   once, then stops at new stage21 immediately after arm_setup_pre_sign and
   arm_slide_rebase_and_sign_image, BEFORE const_boot_args copy/cpu_data_init

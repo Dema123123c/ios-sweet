@@ -34,6 +34,22 @@ and userland. A working display or iOS installation is not established.
 
 ## Checkpoint design and historical controls
 
+V18 advances the boundary using patch 0086: the first validated C hook
+returns once; stage 21 runs immediately after `arm_setup_pre_sign()` and
+`arm_slide_rebase_and_sign_image()`. It stops before copying boot arguments,
+`cpu_data_init()`, `PE_init_platform()` or CPU/VM startup. It retains the
+bootstrap log/reset mappings and rejects unexpected stages. A later native
+PASS requires ordered stage 1, entry PASS, stage 21, REBASE-CHECK PASS and
+recovery request in one matching session, with EL1/MMU/13 MHz registers.
+
+Kernel CI39966833389, shim CI39966833403 and actual-kernel QEMU
+CI39968197929 passed at `cf64132eaf5c67696eb5200a620f095a91085afd`.
+QEMU reaches REBASE-CHECK PASS; its absent Samsung SRAM header prevents
+firmware reset and logs RECOVERY FAILED, as expected for this emulator.
+This does not prove native completion. V18 was written/read back in BOOT
+on the A31; the phone result is pending. BOOT SHA-256:
+`efe9935846af0e1885be787a6cf1ab051a7c0215b8f25be653397345023f396d`.
+
 V7 proved native copying of the actual kernel, BSS, ADT and boot arguments.
 The next kernel build deliberately stops at the existing first
 `sweet_early_mark(1, ...)` in `arm_init`, before rebasing, CPU/VM startup,
