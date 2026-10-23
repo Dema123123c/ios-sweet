@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CURRENT LIVE V5 TEST STARTED 2026-10-23 09:16 UTC. BOOT p35 only written
+  with 1b715df8...ec70111, complete 32MiB raw readback matches. Immediately
+  before write, target/size, fresh FDT unlocked/orange, exact pstore profile,
+  V4 before-image and other partition hashes checked. After write, recovery
+  and both vbmetas reread and unchanged. adb reboot succeeded. Operation
+  research/a31-early-entry-attempt/operation.json, restore_pending=true.
+  User asked short Power continuation if shown, wait30s, manual return to
+  TWRP and report loop/no-loop. Collect matching 4179710... diagnostic logs
+  immediately on return, before another reboot. No new native evidence yet.
 - V5 EARLY-ENTRY PACKAGE READY, not yet written at this checkpoint.
   Source 4179710bdb4bfb52328177f0857c02b8b714d70f, CI 39930336606 SUCCESS:
   37 Python checks, C ASan/UBSan, normal EL1/EL2 QEMU PASS, injected early
