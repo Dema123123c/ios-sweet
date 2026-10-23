@@ -8,6 +8,20 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- FIXED SMC V17 PACKAGE READY, not flashed at checkpoint. Kernel
+  CI39964266332 SUCCESS sourcef5f5a2c, kernel17205432B SHA
+  07e83031de44c0f8dab1fe40d45723288dbedcd66b042496b01129e97d0309a8.
+  _a31_returnfffffe000748535c now has actual DSB/ISB/SMC at
+  fffffe0007485494, linked gate and local check_kernel_reset agree.
+  Shim64tests CI39964266188 PASS. Native build6f23efccc9675f5073fad7202d3877927bf00e77,
+  Image9b0d9858d2ad62218e8122f63022a7108f58a8a88d3b90ab214006ecbb7e3320.
+  Payload69640f820a93fd648bf69869f3b378ca40a5e8a8a9bc86c82be0c89423dcdc3f.
+  BOOT outputs/a31-smc-fix-v17/diagnostic/boot.img 32MiB SHA
+  cad0ce8607f34e693adccbb5ec61bdc84633fc548480fbcecd6fcefb2b02dc18.
+  Fresh currentV16/recovery/vbmeta/unlocked/pstore gates PASS; restore
+  retained. Private research/a31-smc-fix-attempt. NO BRK or watchdog.
+  Next native first-C diagnostic/automatic PSCI recovery/log capture,
+  expected6f23efc. Hardware fixed-reset/complete C checkpoint not claimed.
 - FIXED SMC SOURCE f5f5a2ce3dcc9c26eb891edf2bb9afaf5539da83 pushed.
   Shim CI39964266188 SUCCESS (64 Python + sanitizers +20 shared-assembly
   and prior EL1/EL2 controls). Download research/a31-smc-fix-ci-f5f5a2c.
