@@ -66,7 +66,8 @@ def validate_payload_input(metadata, payload):
     mode = metadata.get('payload_mode')
     if not mode and payload is None and metadata.get('kernel_jump_enabled') is not True:
         return None
-    entry_mode = mode == 'XNU entry checkpoint; stop before CPU/VM startup'
+    trap_mode = mode == 'physical entry BRK control; no XNU instructions'
+    entry_mode = trap_mode or mode == 'XNU entry checkpoint; stop before CPU/VM startup'
     if not entry_mode and (mode != 'prepare-only; no XNU jump' or metadata.get('kernel_jump_enabled') is not False):
         raise ValueError('payload only allowed with the explicit prepare-only native loader')
     if payload is None:
@@ -78,6 +79,12 @@ def validate_payload_input(metadata, payload):
         if (metadata.get('kernel_jump_enabled') is not True or not isinstance(expected, str) or
                 not re.fullmatch(r'[0-9a-f]{64}', expected) or result['sha256'] != expected):
             raise ValueError('entry checkpoint requires the exact payload SHA-256 bound into its loader')
+        if trap_mode:
+            if metadata.get('entry_trap_control') is not True:
+                raise ValueError('entry trap requires explicit control metadata')
+            result['kernel_jump_enabled'] = True
+            result['entry_trap_control'] = True
+            return result
         from a31_payload import ENTRY_MARKERS
         segments = []
         for i in range(result['segments']):
@@ -333,7 +340,8 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
     package_tar(output / 'a31-diagnostic-boot.tar', diagnostic)
     package_tar(output / 'a31-original-boot-restore.tar', stock)
     report = {'device': 'SM-A315F', 'firmware_template': 'A315FXXU5DXJ1',
-               'kind': ('XNU entry checkpoint; stop before CPU/VM startup' if checked_payload and checked_payload['kernel_jump_enabled']
+               'kind': ('physical entry BRK control; no XNU instructions' if checked_payload and checked_payload.get('entry_trap_control')
+                        else 'XNU entry checkpoint; stop before CPU/VM startup' if checked_payload and checked_payload['kernel_jump_enabled']
                         else 'XNU payload preparation/readback only; no kernel jump' if checked_payload
                         else 'diagnostic only; no XNU handoff'), 'native_boot_tested': False,
               'writes_performed_on_phone': False, 'target_partition': 'BOOT only',

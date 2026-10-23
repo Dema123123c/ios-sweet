@@ -64,6 +64,11 @@ jobs:
           PAYLOAD_SHA=$(sha256sum research/a31-diag/handoff.payload | cut -d' ' -f1)
           python3 shim/a31/build.py --qemu --entry-check-sha "$PAYLOAD_SHA" --out research/a31-diag/qemu-entry
           python3 shim/a31/run_qemu.py --expect-handoff --image research/a31-diag/qemu-entry/Image --payload research/a31-diag/handoff.payload --out research/a31-diag/test-entry-results
+      - name: Catch a BRK at the payload entry without executing its instructions
+        run: |
+          PAYLOAD_SHA=$(sha256sum research/a31-diag/handoff.payload | cut -d' ' -f1)
+          python3 shim/a31/build.py --qemu --entry-check-sha "$PAYLOAD_SHA" --entry-trap --out research/a31-diag/qemu-entry-trap
+          python3 shim/a31/run_qemu.py --expect-trap --image research/a31-diag/qemu-entry-trap/Image --payload research/a31-diag/handoff.payload --out research/a31-diag/test-entry-trap-results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -79,4 +84,6 @@ jobs:
             research/a31-diag/test-loader-results/
             research/a31-diag/qemu-entry/
             research/a31-diag/test-entry-results/
+            research/a31-diag/qemu-entry-trap/
+            research/a31-diag/test-entry-trap-results/
           retention-days: 7

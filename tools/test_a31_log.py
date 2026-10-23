@@ -12,6 +12,19 @@ ENTRY_PASS = (b'MMU16K PASS\nVTIMER PASS\nPAYLOAD COPY/READBACK PASS\n'
 
 
 class A31LogTests(unittest.TestCase):
+    def test_entry_trap_is_distinct_from_xnu_execution(self):
+        records = (b'XNU_ENTRY_PA=0x000000010148c488\nENTRY_TRAP_ELR=0x000000010148c488\n'
+                   b'ENTRY_TRAP_ESR=0x00000000f2000a31\nPAYLOAD COPY/READBACK PASS\n'
+                   b'ENTRY BRK ARMED; NO XNU INSTRUCTIONS\n[A31-DIAG] XNU HANDOFF\n'
+                   b'PHYSICAL ENTRY BRK PASS\n')
+        result = inspect(BEGIN + records + PASS, BUILD)
+        self.assertEqual(result['status'], 'entry_trap_pass')
+        self.assertFalse(result['sessions'][0]['xnu_entry_pass'])
+        for bad in [records.replace(b'f2000a31', b'f2000000'),
+                    records.replace(b'ENTRY_TRAP_ELR=0x000000010148c488', b'ENTRY_TRAP_ELR=0x000000010148c48c'),
+                    records.replace(b'ENTRY BRK ARMED; NO XNU INSTRUCTIONS\n', b'')]:
+            self.assertFalse(inspect(BEGIN + bad + PASS, BUILD)['sessions'][0]['physical_entry_trap_pass'])
+
     def test_handoff_is_not_kernel_entry_evidence(self):
         self.assertEqual(inspect(BEGIN + ENTRY_PASS.split(b'[A31-XNU]')[0], BUILD)['status'], 'incomplete')
 

@@ -19,6 +19,19 @@ def kernel():
 
 
 class A31PayloadTests(unittest.TestCase):
+    def test_entry_trap_gate_requires_explicit_mode_and_exact_sha(self):
+        data = fixture(0x100000000, 0x3fd00000)
+        metadata = {'payload_mode': 'physical entry BRK control; no XNU instructions',
+                    'kernel_jump_enabled': True, 'entry_trap_control': True,
+                    'expected_payload_sha256': hashlib.sha256(data).hexdigest()}
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'payload'; path.write_bytes(data)
+            self.assertTrue(validate_payload_input(metadata, path)['entry_trap_control'])
+            for key, value in [('expected_payload_sha256', '0' * 64), ('entry_trap_control', False),
+                               ('kernel_jump_enabled', False)]:
+                bad = dict(metadata); bad[key] = value
+                with self.assertRaises(ValueError): validate_payload_input(bad, path)
+
     def test_entry_gate_requires_exact_payload_and_checkpoint_code(self):
         data = fixture(0x100000000, 0x3fd00000, entry_code=b'\0'.join(ENTRY_MARKERS))
         metadata = {'payload_mode': 'XNU entry checkpoint; stop before CPU/VM startup',

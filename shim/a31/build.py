@@ -11,7 +11,9 @@ import subprocess
 from pathlib import Path
 
 
-def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, entry_check_sha=None):
+def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, entry_check_sha=None, entry_trap=False):
+    if entry_trap and entry_check_sha is None:
+        raise ValueError('entry trap requires an exact payload SHA-256')
     if entry_fault and not qemu:
         raise ValueError('entry fault injection is QEMU-only')
     if entry_check_sha is not None:
@@ -48,6 +50,7 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, e
              f'-DDIAG_ENTRY_FAULT={int(entry_fault)}',
              f'-DDIAG_PAYLOAD_CHECK={int(payload_check)}',
              f'-DDIAG_XNU_ENTRY={int(entry_check_sha is not None)}',
+             f'-DDIAG_ENTRY_TRAP={int(entry_trap)}',
              f'-DDIAG_ENTRY_PAYLOAD_SHA="{entry_check_sha or "disabled"}"',
              f'-DDIAG_BUILD_ID="{build_id}"']
     objects = []
@@ -89,6 +92,10 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, e
         metadata['payload_mode'] = 'XNU entry checkpoint; stop before CPU/VM startup'
         metadata['kernel_jump_enabled'] = True
         metadata['expected_payload_sha256'] = entry_check_sha
+    if entry_trap:
+        metadata['kind'] = 'A31 physical entry BRK control; no XNU instructions'
+        metadata['payload_mode'] = 'physical entry BRK control; no XNU instructions'
+        metadata['entry_trap_control'] = True
     if not qemu:
         metadata['recovery_return'] = {
             'method': 'Samsung SRAM recovery flags + PSCI SYSTEM_RESET via SMC',
@@ -114,5 +121,6 @@ if __name__ == '__main__':
     parser.add_argument('--payload-check', action='store_true',
                         help='validate/copy the initrd XNU payload, verify readback, then return; no jump')
     parser.add_argument('--entry-check-sha', help='enable entry only for a package with this exact payload SHA-256')
+    parser.add_argument('--entry-trap', action='store_true', help='replace the copied entry instruction in RAM with BRK; never execute XNU')
     args = parser.parse_args()
-    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check, args.entry_check_sha)
+    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check, args.entry_check_sha, args.entry_trap)

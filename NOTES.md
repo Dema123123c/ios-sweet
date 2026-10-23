@@ -8,6 +8,22 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- RESUMED ON USER REQUEST. ADB initially empty and no Samsung USB PnP;
+  cable reconnect restored a31/TWRP and Windows USB interfaces OK. Read-only
+  collector research/a31-v8-entry-logs found no matching4deaf94 session in
+  last_kmsg, sec_log or pstore console; do not infer XNU entry/failure from
+  that absence. Fresh research/a31-resume-v8-capture verifies original V8
+  BOOT59f8a8e0...6205357, recovery/both vbmetas unchanged, unlocked/orange.
+- IMPLEMENTED PHYSICAL ENTRY BRK CONTROL, not flashed or hardware tested.
+  New explicit --entry-trap mode requires bound payload SHA; after full
+  copy/readback replaces ONLY RAM entry word with BRK#0xa31, reads back,
+  branches as in V8. Only slot4 ESRf2000a31 and ELR==armed_entry count as
+  control PASS, then existing software TWRP return. No XNU instruction.
+  Collector records entry_trap_pass separately from xnu_entry_pass. 57
+  Python tests and native cross-compile PASS; EL1/EL2 QEMU CI pending.
+  No new phone partition writes. Next run CI, package exact V8 payload
+  with this control and fresh device gates, then test BOOT only under
+  ongoing experimental authorization. Do not repeat unmodified V8.
 - PAUSED AT USER REQUEST, 2026-10-23. User reports V8 remained on the
   Samsung splash after the test, then explicitly requested saving everything
   and stopping work. Automatic recovery return was NOT observed. No native

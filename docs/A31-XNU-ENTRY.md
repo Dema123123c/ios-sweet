@@ -55,3 +55,25 @@ A QEMU-only machine-code receiver tests the actual branch, physical PC,
 `x0`/boot-args fields, EL1, masked DAIF, caches/MMU off and timers disabled
 from incoming EL1 and EL2. This proves the handoff ABI for that fixture,
 not XNU execution. Its payload and QEMU image must never be flashed.
+
+## Physical-entry BRK control after V8
+
+V8 remained on the splash according to the user. On resume, TWRP was
+available after a USB reconnect; Windows and ADB both enumerated it.
+Matching V8 sessions were absent from all three readable log sources.
+This does not distinguish entry failure from loss of logs during return.
+Fresh full reads confirmed the same V8 BOOT, recovery and both vbmetas,
+with unlocked/orange state. No V8 success is claimed.
+
+The separate `--entry-trap` mode requires an exact payload SHA and only
+changes the copied entry word in RAM to `BRK #0xa31` (`0xd4214620`).
+It reads that word back and follows the same physical branch as V8.
+The loader's vectors and stack remain active. Only an EL1 SP1 synchronous
+exception with ESR `0xf2000a31` and ELR equal to the armed entry address
+counts as PHYSICAL ENTRY BRK PASS; it then uses the verified software
+recovery return. Other exceptions follow the existing failure path.
+The persisted BOOT/payload are never patched by this RAM operation.
+No original XNU instruction executes in this control. It tests the real
+physical branch and exception-return logging, not XNU startup.
+QEMU tests both incoming EL1 and EL2 and forbids execution of the normal
+receiver's success/failure messages in this mode.

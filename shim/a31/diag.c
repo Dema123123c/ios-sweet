@@ -27,6 +27,9 @@ static uint64_t psci(uint64_t function)
 }
 #endif
 static uint64_t frequency;
+#if DIAG_ENTRY_TRAP
+static volatile uint64_t entry_trap_address;
+#endif
 static volatile uint32_t timer_irqs, other_irqs;
 extern char _head[], _end[];
 
@@ -303,6 +306,15 @@ static void probe_payload(const struct dt_view *dt)
     if ((READ(CurrentEL) >> 2) != 1 || (READ(sctlr_el1) & ((1ULL << 12) | 5)))
         fail("kernel entry requires EL1 and MMU/caches off");
     text("ENTRY_PAYLOAD_SHA256=" DIAG_ENTRY_PAYLOAD_SHA "\n");
+#if DIAG_ENTRY_TRAP
+    entry_trap_address = plan.entry;
+    field("ENTRY_ORIGINAL_INSTRUCTION=", read32(plan.entry));
+    /* BRK #0xa31 in the copied RAM image only. BOOT/payload remain intact. */
+    write32(plan.entry, 0xd4214620U);
+    BARRIER();
+    if (read32(plan.entry) != 0xd4214620U) fail("entry BRK readback");
+    text("ENTRY BRK ARMED; NO XNU INSTRUCTIONS\n");
+#endif
     text("[A31-DIAG] XNU HANDOFF\n");
     a31_kernel_enter(plan.entry, plan.args_address);
 #else
@@ -318,6 +330,15 @@ void diag_exception(uint64_t slot)
         field("FAR_EL2=", READ(far_el2));
         fail("EL2 entry exception");
     }
+#if DIAG_ENTRY_TRAP
+    if (entry_trap_address && slot == 4 && READ(esr_el1) == 0xf2000a31ULL &&
+        READ(elr_el1) == entry_trap_address) {
+        field("ENTRY_TRAP_ELR=", READ(elr_el1));
+        field("ENTRY_TRAP_ESR=", READ(esr_el1));
+        text("PHYSICAL ENTRY BRK PASS\n[A31-DIAG] PASS\n");
+        finish(1);
+    }
+#endif
     if (slot == 5) {
         uint64_t interrupt = READ(icc_iar1_el1);
         unsigned id = interrupt & 0xffffff;
