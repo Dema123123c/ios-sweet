@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V13 PRE-MMU CONTROL WRITTEN/READ BACK/REBOOTED 2026-10-23 13:15:34 UTC,
+  BOOT p35 only SHAb68414bc...7d56a4e; full readback matches, recovery/both
+  vbmetas unchanged, unlocked/orange gate. Operation
+  research/a31-pre-mmu-attempt/operation.json. User asked short Power(s),
+  no manual recovery keys first40s. Native result PENDING. Collect expected
+  ee57b9545da323492f3d8c92760adf3776456158 into research/a31-v13-pre-mmu-logs.
+  Require exact BRK ESRf2000a31/ELR10148e4f8, M=0 and stack/table/MMU NEXT
+  markers for checkpoint result. This intentionally does NOT enable MMU.
+  V13 remains installed, original BOOT not restored. No watchdog armed.
 - PRE-MMU V13 READY, not flashed at checkpoint. QEMU CI39959404057
   SUCCESS sourceee57b9545da323492f3d8c92760adf3776456158: exact BRK
   ESRf2000a31/ELR10148e4f8 after all stack/table/MMU NEXT markers, M=0.
