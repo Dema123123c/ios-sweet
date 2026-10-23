@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V9 BOOT WRITTEN/READ BACK/REBOOTED 2026-10-23 11:55:40 UTC.
+  Exact SHA4c491327...ccf99b, target p35 only. Recovery and both vbmetas
+  remain unchanged; point-of-write FDT unlocked/orange, IOMEM/pstore gates
+  passed. Operation research/a31-entry-brk-attempt/operation.json.
+  User asked short Power at warning(s), no manual recovery-key return.
+  Waiting for automatic TWRP return; collect logs immediately with expected
+  source0ffbb56a2955ab947867889063186a486e1fdc9e into
+  research/a31-v9-entry-brk-logs. V9 result still PENDING, no XNU execution
+  claimed. Original BOOT not restored; V9 stays installed during testing.
 - V9 PHYSICAL ENTRY BRK CONTROL READY, not yet flashed. Source
   0ffbb56a2955ab947867889063186a486e1fdc9e, CI39949330935 SUCCESS:
   57 Python, three C sanitizer suites and EL1/EL2 core, fault, prepare,
