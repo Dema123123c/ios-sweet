@@ -8,6 +8,22 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V7 PREPARATION-CHECK PACKAGE READY (not yet written at this checkpoint).
+  Source b61c7caf8ae2333813f7ee665c33cca8e954428e, CI39935851952 SUCCESS:
+  49 Python tests, two ASan/UBSan C suites, EL1/EL2 normal, exception and
+  actual payload-copy/readback QEMU entries. Artifacts research/a31-loader-ci-b61c7ca,
+  native-loader Image SHA6388b86592891e6c54ee62e3385e09c22523ec52cf92939e868b274c780fdba0.
+  Private outputs/a31-xnu-prepare-v7/diagnostic/boot.img (33554432B), SHA
+  01392251683dd543b355ab701fcc5afab5dcc3af6298910ddd6f843954c89eb0.
+  Ramdisk intentionally replaced with validated16586896B XNU payload;
+  original header/DTB preserved, exact original BOOT restore and TAR ready.
+  Current fresh preflight research/a31-xnu-prepare-attempt confirms V6,
+  TWRP and vbmetas, unlocked/orange, exact pstore profile, live IOMEM range
+  and equivalent ADT hardware properties (only random-seed differs between
+  fresh serializations; normalize that field in comparison, keep payload).
+  Kernel-jump-disabled in native manifest/code. This only copies/reads RAM,
+  then auto-returns to TWRP. Does not execute XNU. About to test BOOT only
+  within user-authorized continued experimental bring-up.
 - USER AUTHORIZED CONTINUE after V6 success. New independent A31 payload
   loader source prepares/read-verifies segments, BSS, ADT and boot args;
   XNU jump is deliberately absent until kernel logging/panic recovery exists.
