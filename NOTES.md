@@ -8,6 +8,29 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V22 NATIVE RUNTIME TEST STARTED 2026-10-23 15:31:55 UTC. Kernel and
+  shim SUCCESS source70bbb0efad041da1e7edc8c6651c191df2a4790d; actual-kernel
+  QEMU39978346567 SUCCESS with ordered stage5 STARTUP-LOCKS-CHECK PASS and
+  stage6 CPU-INIT-CHECK PASS (missing Samsung SRAM reset there is expected).
+  BOOT outputs/a31-runtime-v22/diagnostic/boot.img 32MiB SHA
+  5daceb2c179f0f4298dbbef9d4611922fafa1a85307faaac5ac724a4ff6c0db1,
+  full write/readback PASS, fresh V21/recovery/vbmeta/unlocked/pstore gates
+  PASS, recovery/vbmetas unchanged. Native result pending; user short-Power
+  prompt sent, collector targets research/a31-v22-runtime-logs expected70bbb0e.
+  Private research/a31-runtime-attempt contains operation/preflight/package
+  and native build. V22 retained with original BOOT restore available.
+- V22 KERNEL BUILD PASS: CI39977026628 source70bbb0e, kernel17205504B SHA
+  d7dafe841a155ba37ded45ad122690f3bcdd5b13e628b816894a8269681a7de0,
+  actual reset SMC VAfffffe00074859fc verified. Download
+  research/a31-runtime-kernel-ci-70bbb0e/kernel. Runtime actual-kernel QEMU
+  CI39978346567 dispatched and pending. prepare/test scripts require QEMU
+  SUCCESS before native package/write. Phone still V21 in TWRP; no V22 writes.
+- V22 source70bbb0efad041da1e7edc8c6651c191df2a4790d pushed. Kernel
+  CI39977026628 compiling; shim CI39977026552 SUCCESS, downloaded
+  research/a31-runtime-ci-70bbb0e. Private a31-runtime-attempt contains
+  macro/compile evidence, prepare.py/test_v22.py and await_kernel.py
+  (validates successful kernel and actual reset sequence, dispatches runtime
+  QEMU). Current phone still native-PASS V21; V22 not packaged/flashed yet.
 - NEXT V22 RUNTIME GROUP prepared: patch0090 lets stage4 return, runs
   rtclock_early_init, kernel_startup_bootstrap (tunables/timeouts/locks),
   timer_call_init and cpu_init; checks ARM64/running/sleep-token0/timer
