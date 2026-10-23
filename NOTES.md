@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V6 AUTO-RETURN PACKAGE READY; about to test BOOT only under ongoing
+  experimental authorization. Source a678d2ce7cb4dd427afab315993e7c45bc042185,
+  CI 39932859508 SUCCESS (38 Python, C ASan/UBSan, EL1/EL2 QEMU normal and
+  injected exceptions). Artifacts research/a31-auto-return-ci-a678d2c.
+  Native Image SHA d5ecfdef2918e4e033c9cd11fc7ceb7700497cde56eff3bfef5eb68d53bf25e8.
+  Private outputs/a31-diagnostic-auto-v6/diagnostic/boot.img SHA
+  6900f17bf1a79a9db406052fe987e2f11fc8aa63d8cacdeb0fbe75a1eeb23bd6,
+  32MiB. Original BOOT and AP-only restore TAR retained. Package validated
+  current exact recovery reset ABI, fresh FDT unlocked/orange, pstore profile,
+  V5 before-image and unchanged vbmetas. Preflight research/a31-auto-return-attempt.
+  No native return/result yet. Test should return itself to TWRP; ask user
+  only short Power continuation if displayed, no forced reset before capture.
 - CONTROL RESULT: manual TWRP->TWRP long-key reboot lost the PMSG marker;
   /sys/fs/pstore empty, captured at uptime14.84s. A fresh software control
   via adb reboot recovery DID recover its unique marker in PMSG, along
