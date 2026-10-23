@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V22 CHECKPOINT SAVED AND VERIFIED in workspace outputs/a31-v22-checkpoint-20261023/
+  a31-v22-checkpoint.zip, 62 files, 167371808B, CRC test PASS, SHA256
+  72848f92b07ece5d3d544eb9d8823f5575aa1a4898749374ee11207bda93dd18.
+  Includes tracked source snapshot d4b72cf9ecbb3d13f1192ff4eab6a5ea2075a5d2,
+  native package/restoration BOOT, private operation/preflight/readback/copies,
+  actual kernel/payload/native logs/QEMU evidence/next-VM audit. Adjacent
+  manifest.json hashes every entry; README explains CPU versus GPU and next
+  step. Private archive remains outside Git. Public code/results pushed;
+  phone remains V22 in TWRP, no pending writes/builds.
 - V22 NATIVE RUNTIME CPU INIT PASS. Matching70bbb0e pstore contains all
   ordered prior checkpoints, stage5 STARTUP-LOCKS-CHECK PASS, stage6
   CPU-INIT-CHECK PASS, RECOVERY REQUEST; EL1/SCTLR3454593d/13MHz and no
