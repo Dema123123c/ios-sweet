@@ -1,5 +1,39 @@
 # A31 first XNU entry checkpoint
 
+## Native checkpoint verified, 2026-10-23
+
+V17 reached the first `sweet_early_mark(1, ...)` in `arm_init` on the real
+SM-A315F and returned automatically to TWRP. The matching pstore session
+`6f23efccc9675f5073fad7202d3877927bf00e77` records, in order:
+
+```text
+[A31-XNU] ENTRY MMU-OFF v1
+[A31-XNU] STACKS NEXT
+[A31-XNU] TABLES READY
+[A31-XNU] MMU ENABLE NEXT
+[A31-XNU] C STAGE 1: arm_init entered (MMU on)
+XNU_CURRENT_EL=0x0000000000000001
+XNU_SCTLR_EL1=0x000000003454593d
+XNU_CNTFRQ=0x0000000000c65d40
+[A31-XNU] ENTRY-CHECK PASS
+[A31-XNU] RECOVERY REQUEST
+```
+
+No artificial BRK or watchdog reset was used. This verifies native high-VA
+C execution with MMU/cache enabled and the corrected C PSCI reset path.
+Only pstore contains the XNU checkpoint; last_kmsg contains loader records.
+Private evidence is `research/a31-v17-smc-fix-logs/report.json` and its raw
+console. Full BOOT readback matched SHA-256
+`cad0ce8607f34e693adccbb5ec61bdc84633fc548480fbcecd6fcefb2b02dc18`.
+Recovery and both vbmetas remained unchanged. V17 is retained in BOOT.
+Kernel CI39964266332 and shim CI39964266188 succeeded at source
+`f5f5a2ce3dcc9c26eb891edf2bb9afaf5539da83`.
+
+Execution deliberately ends before rebasing, CPU/VM initialization, drivers
+and userland. A working display or iOS installation is not established.
+
+## Checkpoint design and historical controls
+
 V7 proved native copying of the actual kernel, BSS, ADT and boot arguments.
 The next kernel build deliberately stops at the existing first
 `sweet_early_mark(1, ...)` in `arm_init`, before rebasing, CPU/VM startup,

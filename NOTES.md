@@ -8,6 +8,24 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V17 NATIVE FIRST-C CHECKPOINT PASS, 2026-10-23. Matching pstore session
+  6f23efccc9675f5073fad7202d3877927bf00e77 contains original ENTRY MMU-OFF,
+  STACKS NEXT, TABLES READY, MMU ENABLE NEXT, C STAGE1 arm_init entered,
+  ENTRY-CHECK PASS and RECOVERY REQUEST in order. EL1, SCTLR3454593d
+  (MMU/cache enabled), CNTFRQ13000000; no exception/FAIL/reset-return.
+  User reports automatic TWRP return; ADB currently confirms recovery.
+  Actual corrected C PSCI SMC reset now works on hardware. No BRK/WDT.
+  last_kmsg contains loader/copy records only; ONLY pstore proves C entry.
+  BOOT cad0ce8607f34e693adccbb5ec61bdc84633fc548480fbcecd6fcefb2b02dc18
+  installed/read back fully at13:57:46 UTC; recovery/vbmetas unchanged.
+  Evidence private research/a31-v17-smc-fix-logs/report.json and
+  research/a31-smc-fix-attempt/operation.json. V17 intentionally retained;
+  stock restore available. Kernel CI39964266332 and shim CI39964266188
+  SUCCESS sourcef5f5a2c. This stops at FIRST arm_init C mark, BEFORE rebasing,
+  CPU/VM startup, drivers or userland; not a complete XNU/iOS boot.
+  NEXT: inspect arm_init rebasing/early hooks and introduce a bounded later
+  C checkpoint while preserving verified reset/log mappings. Audit inherited
+  Qualcomm MMIO before proceeding; no new partition scope is authorized.
 - FIXED SMC V17 PACKAGE READY, not flashed at checkpoint. Kernel
   CI39964266332 SUCCESS sourcef5f5a2c, kernel17205432B SHA
   07e83031de44c0f8dab1fe40d45723288dbedcd66b042496b01129e97d0309a8.
