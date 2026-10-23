@@ -34,6 +34,38 @@ and userland. A working display or iOS installation is not established.
 
 ## Checkpoint design and historical controls
 
+V20 passed early `PE_init_platform(FALSE)` on the real A31. Patch 0088
+represents the unknown bus frequency as zero with valid 0/1 ratios, avoiding
+zero division and doubled-CPU overflow without inventing a bus frequency.
+The native checkpoint verifies 13 MHz timebase/decrementer, a nonzero CPU
+rate and the unknown-bus policy before stage 2/PLATFORM-CHECK PASS/reset.
+Only matching pstore establishes this result; last_kmsg has loader records.
+Evidence: private `research/a31-v20-platform-logs/report.json`, loader build
+`0cfdae130e969f4f23d58fc2e502fbcdcc0f9479`, kernel source
+`473dd625283d629be06a3e554218ff42410c2fc7`. Kernel CI39972353910 and corrected
+QEMU CI39973877942 passed; the first QEMU fixture was rejected before XNU
+because it retained Redmi identity. The corrected fixture is regression-tested.
+V20 BOOT SHA: `36cf89f539bca7a5f5d09254020b19fe721a595227b6b0129f59a28e37f9bbf5`.
+
+V21 groups generic event-stream setup, CPU topology, bootstrap-thread
+creation and `cpu_bootstrap` in one test. Patch 0089 continues stages 2/3
+and checks one CPU/cluster, boot CPU 0, current-thread identity, its CPU data
+pointer and zero preemption level before stage 4/CPU-BOOTSTRAP-CHECK PASS.
+`cpu_bootstrap` itself is empty on this generic ARM target. This does not
+start scheduling or secondary CPUs. Execution stops before early rtclock,
+startup callbacks, VM and drivers. Kernel CI39974602127 and shim CI39974601865
+passed at `33a398308dd27d50f1088eae64639e4cbc3bfef5`. Actual-kernel QEMU
+CI39976029411 and the subsequent native A31 test also passed: matching
+pstore contains all ordered prior stages, topology PASS, stage 4
+CPU-BOOTSTRAP-CHECK PASS and recovery request, with EL1, MMU enabled and
+13 MHz timer. No failure/exception/reset-return markers were present.
+The user confirmed automatic TWRP return. Private evidence:
+`research/a31-v21-cpu-bootstrap-logs/report.json`; last_kmsg remains loader-only.
+V21 remains in BOOT, SHA-256
+`028a6aeae42d9e72c3d89739c24226a63cb11a476a82cf9cc7b93cd9c308d8a6`.
+Recovery and both vbmetas were checked unchanged; the original BOOT restore
+is retained. Scheduling, secondary CPUs, VM and phone drivers are not running.
+
 V19 adds patch 0087. Stage 21 now returns once; the original boot-argument
 copy and `cpu_data_init(&BootCpuData)` execute. Before `PE_init_platform`,
 the diagnostic compares every copied boot-argument byte with the original
@@ -58,11 +90,12 @@ to BOOT and fully read back; SHA-256:
 `ecffffc8f9d6d33e4b9bf79b40dc955a2dda2cb3ae3f97a18e5feece30e2ecdb`.
 Recovery and both vbmetas were checked unchanged.
 
-The next platform boundary needs a clock-policy fix first: `mka31adt.py`
+Before V20, the platform boundary required a clock-policy fix: `mka31adt.py`
 omits the unknown bus frequency, while `pe_identify_machine()` uses that
 zero frequency in a division. This is undefined C behavior and produces
 invalid clock ratios; no native platform crash is established by that
-source audit. V19 deliberately stops before this code. Do not invent an
+source audit. V19 deliberately stopped before this code; patch 0088 now
+guards the unknown-bus ratios. Do not invent an
 A31 bus frequency to make the calculation pass.
 
 V18 advances the boundary using patch 0086: the first validated C hook

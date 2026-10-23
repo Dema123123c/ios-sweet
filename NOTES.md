@@ -8,6 +8,45 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V21 NATIVE GROUPED CPU BOOTSTRAP PASS. Matching33a3983 pstore has ordered
+  prior stages/platform PASS, stage3 ml_parse_cpu_topology/TOPOLOGY-CHECK PASS,
+  stage4 cpu_bootstrap/CPU-BOOTSTRAP-CHECK PASS, RECOVERY REQUEST;
+  EL1/SCTLR3454593d/13MHz, no failure/exception/reset-return markers.
+  This verifies one CPU/cluster/boot CPU0, bootstrap-thread registration,
+  current-thread identity/CpuDatap/preemption0. cpu_bootstrap is empty on
+  generic ARM; scheduling and secondary CPUs are NOT running. User confirms
+  automatic TWRP, ADB recovery and matching evidence read. ONLY pstore proves
+  XNU; last_kmsg is loader-only. Private evidence research/a31-v21-cpu-bootstrap-logs/
+  report.json; operation/pending updated. V21 BOOT028a6aea...c308d8a6 retained;
+  original restore available, recovery/vbmetas unchanged. No pending phone
+  operation/active build. NEXT larger phase: rtclock/startup callbacks/locks
+  and CPU runtime init, then VM. Audit callbacks for inherited hardware,
+  preserve log/reset with permanent final mappings BEFORE TTBR0 teardown;
+  see research/a31-cpu-bootstrap-attempt/next-vm-audit.json. User warned
+  only10% limits remain; report concisely and avoid unnecessary tiny tests.
+- V21 GROUPED NATIVE TEST STARTED 2026-10-23 15:12:11 UTC. Source/session
+  33a398308dd27d50f1088eae64639e4cbc3bfef5. Kernel CI39974602127 SUCCESS,
+  17221888B SHA62188e8dd14447d991bde6f457429ed39538006ef37eb227ce56a56cf4160bae,
+  verified reset SMC VAfffffe0007485890. Shim CI39974601865 SUCCESS (68
+  tests incl platform fixture regression and clock UBSan policy). Actual-kernel
+  QEMU39976029411 SUCCESS with ordered stage2/3/4, TOPOLOGY and CPU-BOOTSTRAP
+  PASS; expected missing-Samsung-header reset failure there is not native proof.
+  outputs/a31-cpu-bootstrap-v21/diagnostic/boot.img 32MiB SHA
+  028a6aeae42d9e72c3d89739c24226a63cb11a476a82cf9cc7b93cd9c308d8a6,
+  full write/readback PASS; fresh V20/recovery/vbmeta/unlocked gates PASS,
+  recovery/vbmetas unchanged. No BRK/watchdog. Private
+  research/a31-cpu-bootstrap-attempt; collector targets new
+  research/a31-v21-cpu-bootstrap-logs expected33a3983. Await user short
+  Power/auto TWRP and matching pstore result; not a full OS boot.
+- V21 source33a398308dd27d50f1088eae64639e4cbc3bfef5 pushed. Kernel
+  CI39974602127 compiling; shim CI39974601865 SUCCESS, artifacts downloaded
+  research/a31-cpu-bootstrap-ci-33a3983. Private attempt a31-cpu-bootstrap-attempt
+  has prepare.py/test_v21.py and await_kernel.py (waits for kernel SUCCESS,
+  verifies SHA/reset, then dispatches actual-kernel QEMU cpu_bootstrap mode).
+  V21 not packaged/flashed yet. Current BOOT remains native-PASS V20.
+  NEXT VM audit saved privately next-vm-audit.json: low log/SRAM pointers
+  require persistent final mappings before TTBR0 invalidation; do not blindly
+  advance into VM. User has only10% account limits; keep further reporting short.
 - V20 NATIVE EARLY PLATFORM PASS. Pstore matching loader0cfdae130e969f4f23d58fc2e502fbcdcc0f9479
   contains ordered prior stages and C stage2/PLATFORM-CHECK PASS/reset,
   EL1/SCTLR3454593d/13MHz, no exception/failure. User automatic TWRP.
