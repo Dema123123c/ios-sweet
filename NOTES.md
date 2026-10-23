@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- WATCHDOG CONTROL V12 PACKAGE READY, not flashed at checkpoint.
+  CI39957923956 SUCCESS source7c8cd384436f620790f6dce80af56e802505c48a:
+  60 Python, watchdog C sanitizers/write-order/mode gates,20 boot-fault
+  runs and all previous EL1/EL2 controls PASS. Native Image
+  SHA0f3ada785d743daf0d8d3903cadf22dc07918aff49d29adbe3c3ba71192d0f19.
+  Private outputs/a31-watchdog-control-v12/diagnostic/boot.img 32MiB SHA
+  3da2c170075231f6becb4ec2839f1b852e9a00ce151a13e094cc8e0846c3bd29.
+  Fresh V11 BOOT/recovery/vbmeta hashes, unlocked/orange FDT and pstore
+  gates PASS. Stock restore included. No XNU payload/jump in this test.
+  test_v12.py/preflight.json in research/a31-watchdog-control-attempt.
+  Next test BOOT only, short Power warning(s), await auto recovery, collect
+  expected7c8cd38 logs and boot reason BEFORE declaring timer/log retention.
 - BOUNDED WATCHDOG CONTROL IMPLEMENTED, NOT FLASHED. Native-only build
   --watchdog-control rejects all payload/entry/QEMU modes. Prearms existing
   guarded recovery SRAM words, logs WAIT, MODE5c->15 single-stage reset,
