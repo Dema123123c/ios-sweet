@@ -8,6 +8,26 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- RESUMED 2026-10-23 on explicit user request. A31 is in TWRP; user says
+  attempted poweroff last night restarted itself and looped overnight.
+  Fresh twice-read capture research/a31-resume-20261023-capture confirms
+  V4 BOOT f1ea9219...2f53a13 still installed, recovery d8a89533...cd890,
+  both vbmetas unchanged. Fresh recovery FDT validates unlocked/orange.
+  No partition writes or reboots performed this morning.
+- Collected research/a31-v4-resume-20261023-logs for expected build d64a5f4.
+  sec_log and last_kmsg contain no matching session; both pstore console
+  filenames absent. last_kmsg is current LK recovery-boot output, not a
+  preserved native trace. Native entry/MMU/timer/WDT result remains UNKNOWN.
+  Overnight loops/power transitions make absence inconclusive. Do not
+  repeatedly flash the same V4 image or claim it has executed successfully.
+- New source closes an observability gap: set stack/BSS/vectors at incoming
+  EL1/EL2, bind validated logs and emit early entry before EL2 setup/eret.
+  Preserve that session through EL1; capture EL2 ESR/ELR/FAR on faults.
+  QEMU-only undefined-instruction injection tests both early vector paths.
+  Native fault injection forbidden. Local native/QEMU cross-compiles and
+  original 35 Python tests passed before adding two early-session tests.
+  Next: complete checks/CI before preparing any new native package.
+- Historical pause/current-test bullets below are superseded by this resume.
 - USER EXPLICITLY PAUSED WORK UNTIL TOMORROW (2026-10-23): messages
   "короче давай завтра" / "продолжем" together mean continue tomorrow.
   No more tests/phone writes today. Closing state only.

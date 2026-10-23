@@ -22,11 +22,36 @@ _start:
     mrs x1, sctlr_el1
     tbnz x1, #0, halt
     tbnz x1, #2, halt
-    b at_el1
+    b prepare_entry
 from_el2:
     mrs x1, sctlr_el2
     tbnz x1, #0, halt
     tbnz x1, #2, halt
+prepare_entry:
+    msr spsel, #1
+    adr x1, _stack_top
+    mov sp, x1
+    adr x1, _bss_start
+    adr x2, _bss_end
+1:  cmp x1, x2
+    b.hs 2f
+    str xzr, [x1], #8
+    b 1b
+2:  adr x1, vectors
+    cmp x20, #8
+    b.eq 3f
+    msr vbar_el1, x1
+    b 4f
+3:  msr vbar_el2, x1
+4:  isb
+    mov x0, x19
+    lsr x1, x20, #2
+    bl diag_early
+#if DIAG_ENTRY_FAULT
+    .inst 0
+#endif
+    cmp x20, #8
+    b.ne at_el1
     mov x1, #0x80000000
     msr hcr_el2, x1
     msr cptr_el2, xzr
@@ -50,13 +75,7 @@ at_el1:
     msr spsel, #1
     adr x1, _stack_top
     mov sp, x1
-    adr x1, _bss_start
-    adr x2, _bss_end
-1:  cmp x1, x2
-    b.hs 2f
-    str xzr, [x1], #8
-    b 1b
-2:  adr x1, vectors
+    adr x1, vectors
     msr vbar_el1, x1
     isb
     mov x0, x19

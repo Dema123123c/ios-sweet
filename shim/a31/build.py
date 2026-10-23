@@ -10,7 +10,9 @@ import subprocess
 from pathlib import Path
 
 
-def build(out, cc='clang', qemu=False):
+def build(out, cc='clang', qemu=False, entry_fault=False):
+    if entry_fault and not qemu:
+        raise ValueError('entry fault injection is QEMU-only')
     source = Path(__file__).resolve().parent
     out = Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -38,6 +40,7 @@ def build(out, cc='clang', qemu=False):
              '-fno-asynchronous-unwind-tables', '-fno-jump-tables',
              '-mgeneral-regs-only', '-mstrict-align', '-mno-outline-atomics',
              '-Wall', '-Wextra', '-Werror', f'-DDIAG_QEMU={int(qemu)}',
+             f'-DDIAG_ENTRY_FAULT={int(entry_fault)}',
              f'-DDIAG_BUILD_ID="{build_id}"']
     objects = []
     for name in ['start.S', 'support.c', 'diag.c']:
@@ -68,7 +71,8 @@ def build(out, cc='clang', qemu=False):
     metadata = {'kind': 'A31 diagnostic shim, not XNU', 'qemu': qemu,
                 'bytes': len(data), 'sha256': hashlib.sha256(data).hexdigest(),
                 'native_boot_tested': False, 'build_id': build_id, 'text_offset': '0x80000',
-                'image_flags': image_flags}
+                'image_flags': image_flags, 'entry_fault_test': entry_fault,
+                'early_entry_log': True}
     if not qemu:
         metadata['pstore_console'] = {'base': '0x4d05f000', 'bytes': 0x40000,
                                      'recovery_layout_profile_required': True}
@@ -84,5 +88,7 @@ if __name__ == '__main__':
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--cc', default='clang')
     parser.add_argument('--qemu', action='store_true')
+    parser.add_argument('--entry-fault-test', action='store_true',
+                        help='QEMU only: inject an undefined instruction after the early log')
     args = parser.parse_args()
-    build(args.out, args.cc, args.qemu)
+    build(args.out, args.cc, args.qemu, args.entry_fault_test)

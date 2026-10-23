@@ -201,6 +201,12 @@ static int probe_timer(const struct dt_view *dt)
 }
 void diag_exception(uint64_t slot)
 {
+    if ((READ(CurrentEL) >> 2) == 2) {
+        field("EXCEPTION_EL=", 2); field("EXCEPTION_SLOT=", slot);
+        field("ESR_EL2=", READ(esr_el2)); field("ELR_EL2=", READ(elr_el2));
+        field("FAR_EL2=", READ(far_el2));
+        fail("EL2 entry exception");
+    }
     if (slot == 5) {
         uint64_t interrupt = READ(icc_iar1_el1);
         unsigned id = interrupt & 0xffffff;
@@ -211,16 +217,17 @@ void diag_exception(uint64_t slot)
         __asm__ volatile("isb");
         return;
     }
-    field("EXCEPTION_SLOT=", slot); field("ESR_EL1=", READ(esr_el1));
+    field("EXCEPTION_EL=", 1); field("EXCEPTION_SLOT=", slot);
+    field("ESR_EL1=", READ(esr_el1));
     field("ELR_EL1=", READ(elr_el1)); field("FAR_EL1=", READ(far_el1));
     fail("exception");
 }
 
-void diag_main(uintptr_t fdt_address, uint64_t entry_el)
+void diag_early(uintptr_t fdt_address, uint64_t entry_el)
 {
     struct dt_view dt;
     uint32_t node;
-    uint64_t base, size, ram_base, ram_size;
+    uint64_t base, size;
     if ((fdt_address & 7) || fdt_address < 0x40000000 ||
         fdt_address > 0x140000000ULL - 0x200000 ||
         !dt_open(&dt, (const void *)fdt_address, 0x200000)) fail("FDT bounds");
@@ -248,7 +255,23 @@ void diag_main(uintptr_t fdt_address, uint64_t entry_el)
 #endif
     text("\n[A31-DIAG v1] BEGIN\n");
     text("BUILD=" DIAG_BUILD_ID "\n");
-    field("ENTRY_EL=", entry_el); field("CURRENT_EL=", READ(CurrentEL) >> 2);
+    field("ENTRY_EL=", entry_el); field("EARLY_CURRENT_EL=", READ(CurrentEL) >> 2);
+    field("FDT=", fdt_address);
+    if (entry_el == 2) field("ENTRY_SCTLR=", READ(sctlr_el2));
+    else field("ENTRY_SCTLR=", READ(sctlr_el1));
+    text("EARLY ENTRY RECORDED\n");
+    (void)base; (void)size;
+}
+
+void diag_main(uintptr_t fdt_address, uint64_t entry_el)
+{
+    struct dt_view dt;
+    uint32_t node;
+    uint64_t ram_base, ram_size;
+    (void)entry_el;
+    field("CURRENT_EL=", READ(CurrentEL) >> 2);
+    text("EL1 HANDOFF RECORDED\n");
+    if (!dt_open(&dt, (const void *)fdt_address, 0x200000)) fail("EL1 FDT bounds");
     field("MIDR=", READ(midr_el1)); field("MPIDR=", READ(mpidr_el1));
     field("SCTLR_EL1=", READ(sctlr_el1)); field("FDT=", fdt_address);
 #if !DIAG_QEMU
@@ -258,7 +281,6 @@ void diag_main(uintptr_t fdt_address, uint64_t entry_el)
     if (frequency < 1000000 || frequency > 1000000000) fail("timer frequency");
     /* Device-type lookup includes unit-addressed memory nodes on QEMU. */
     if (!dt_compatible(&dt, "arm,gic-v3", &node)) fail("no GICv3");
-    (void)base; (void)size;
 #if DIAG_QEMU
     ram_base = 0x40000000; ram_size = 0x20000000;
 #else

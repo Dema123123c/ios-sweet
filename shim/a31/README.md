@@ -6,6 +6,15 @@ CPUs. It enters EL1 (including an EL2 handoff), checks 16 KiB translation
 through a distinct virtual alias, and checks three virtual-timer interrupts
 through GICv3. The native build then halts; manual recovery is required.
 
+The entry path sets a stack and exception vectors at the incoming EL1 or
+EL2 before the EL2-to-EL1 handoff. After validating the FDT and reserved
+log ranges, it records `EARLY_CURRENT_EL`, `ENTRY_SCTLR` and
+`EARLY ENTRY RECORDED`; the later `EL1 HANDOFF RECORDED` marker confirms
+entry to the main diagnostic. EL2 exceptions record ESR/ELR/FAR at EL2.
+The early log cannot observe rejection before image entry, an unsupported
+entry EL, MMU/cache enabled on entry, or a fault before log binding.
+No native entry marker has been recovered from this phone yet.
+
 The native build accepts the captured MT6768 platform and the Samsung
 sec-log reserved region at 0x46c00000 / 2 MiB. It appends to the LOGM ring
 described in Samsung's `drivers/samsung/misc/sec_log.c`; Linux normally
@@ -25,7 +34,11 @@ fresh recovery sysfs profile. Collection includes
 indexed `console-ramoops-0` variant. A control record written through
 Linux `/dev/pmsg0` survived an actual TWRP reboot and was read from
 `pmsg-ramoops-0`, proving that the recovery pstore backend can persist data.
-Actual native console persistence is still untested.
+V4 has now been booted on the phone, but native console persistence remains
+unproven: after overnight bootloops and a return to TWRP, neither console
+file was exposed and no matching session was found in sec_log/last_kmsg.
+Power loss and intervening reboots prevent localising the failure from that
+absence alone. The PMSG control test only establishes Linux persistence.
 
 After logging entry, the native build checks the `mediatek,toprgu` FDT range
 at 0x10007000 / 4 KiB, records watchdog MODE/STATUS, and clears only MODE.EN
@@ -50,6 +63,9 @@ QEMU virt and uses PL011/semihosting; **do not boot it on the phone**.
 The `a31-shim` workflow tests both EL1 and EL2 entries and the parser/log
 ring with AddressSanitizer and UndefinedBehaviorSanitizer. Those are emulator
 and host checks; only a later phone test can establish MediaTek compatibility.
+It also injects an undefined instruction immediately after the early marker
+in a QEMU-only image, checking both exception handlers before EL1 handoff.
+The builder rejects fault injection for native images.
 
 References:
 - [AArch64 boot protocol](https://www.kernel.org/doc/html/latest/arch/arm64/booting.html)

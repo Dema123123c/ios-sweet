@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 
-def run(image, out, qemu='qemu-system-aarch64'):
+def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False):
     image, out = Path(image).resolve(), Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     reports = []
@@ -26,11 +26,23 @@ def run(image, out, qemu='qemu-system-aarch64'):
         text = result.stdout + result.stderr
         (out / f'el{entry}.log').write_text(text, encoding='utf-8')
         print(text, end='')
-        expected = [f'ENTRY_EL=0x{entry:016x}', 'CURRENT_EL=0x0000000000000001',
-                    'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS']
-        if result.returncode != 0 or any(item not in text for item in expected):
+        expected = [f'ENTRY_EL=0x{entry:016x}', f'EARLY_CURRENT_EL=0x{entry:016x}',
+                    'EARLY ENTRY RECORDED']
+        if expect_entry_fault:
+            expected += [f'EXCEPTION_EL=0x{entry:016x}', f'ESR_EL{entry}=0x0000000002000000',
+                         '[A31-DIAG] FAIL ']
+            expected_return = 1
+            forbidden = ['EL1 HANDOFF RECORDED', '[A31-DIAG] PASS']
+        else:
+            expected += ['EL1 HANDOFF RECORDED', 'CURRENT_EL=0x0000000000000001',
+                         'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS']
+            expected_return = 0
+            forbidden = ['[A31-DIAG] FAIL ']
+        if (result.returncode != expected_return or any(item not in text for item in expected)
+                or any(item in text for item in forbidden)):
             raise RuntimeError(f'EL{entry} QEMU diagnostic failed, return code {result.returncode}')
-        reports.append({'entry_el': entry, 'result': 'pass', 'virtualization': virtualization})
+        reports.append({'entry_el': entry, 'result': 'pass', 'virtualization': virtualization,
+                        'entry_fault_caught': expect_entry_fault})
     (out / 'qemu-results.json').write_text(json.dumps(reports, indent=2) + '\n', encoding='utf-8')
 
 
@@ -39,5 +51,6 @@ if __name__ == '__main__':
     parser.add_argument('--image', required=True, type=Path)
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--qemu', default='qemu-system-aarch64')
+    parser.add_argument('--expect-entry-fault', action='store_true')
     args = parser.parse_args()
-    run(args.image, args.out, args.qemu)
+    run(args.image, args.out, args.qemu, args.expect_entry_fault)

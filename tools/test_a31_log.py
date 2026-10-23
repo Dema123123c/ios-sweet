@@ -9,6 +9,20 @@ PASS = b'MMU16K PASS\nVTIMER PASS\n[A31-DIAG] PASS\n'
 
 
 class A31LogTests(unittest.TestCase):
+    def test_early_entry_only_does_not_prove_el1_handoff(self):
+        result = inspect(BEGIN + b'EARLY_CURRENT_EL=0x0000000000000002\n'
+                         b'EARLY ENTRY RECORDED\n', BUILD)
+        self.assertEqual(result['status'], 'incomplete')
+        self.assertEqual(result['sessions'][0]['fields']['EARLY_CURRENT_EL'],
+                         '0x0000000000000002')
+
+    def test_early_el2_exception_is_a_failed_session(self):
+        result = inspect(BEGIN + b'EXCEPTION_EL=0x0000000000000002\n'
+                         b'ESR_EL2=0x0000000002000000\n'
+                         b'[A31-DIAG] FAIL EL2 entry exception\n', BUILD)
+        self.assertEqual(result['status'], 'fail')
+        self.assertEqual(result['sessions'][0]['failure'], 'EL2 entry exception')
+
     def test_pass_requires_one_matching_build_session(self):
         result = inspect(BEGIN + b'CURRENT_EL=0x0000000000000001\n' + PASS, BUILD)
         self.assertEqual(result['status'], 'pass')
