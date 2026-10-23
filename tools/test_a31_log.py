@@ -34,6 +34,17 @@ class A31LogTests(unittest.TestCase):
         bootstrap_good = platform_good.replace(b'[A31-XNU] RECOVERY REQUEST\n',
                                                bootstrap + b'[A31-XNU] RECOVERY REQUEST\n')
         self.assertEqual(inspect(BEGIN + bootstrap_good, BUILD)['status'], 'xnu_cpu_bootstrap_pass')
+        runtime = (b'[A31-XNU] C STAGE 5: kernel_startup_bootstrap done\n'
+                   b'[A31-XNU] STARTUP-LOCKS-CHECK PASS\n'
+                   b'[A31-XNU] C STAGE 6: cpu_init done\n'
+                   b'[A31-XNU] CPU-INIT-CHECK PASS\n')
+        runtime_good = bootstrap_good.replace(b'[A31-XNU] RECOVERY REQUEST\n',
+                                              runtime + b'[A31-XNU] RECOVERY REQUEST\n')
+        self.assertEqual(inspect(BEGIN + runtime_good, BUILD)['status'], 'xnu_cpu_init_pass')
+        for bad in [bootstrap_good, runtime + bootstrap_good,
+                    runtime_good.replace(b'[A31-XNU] STARTUP-LOCKS-CHECK PASS\n', b''),
+                    runtime_good + b'[A31-XNU] CPU-INIT-CHECK FAIL\n']:
+            self.assertFalse(inspect(BEGIN + bad, BUILD)['sessions'][0]['xnu_cpu_init_pass'])
         for bad in [platform_good, bootstrap + platform_good,
                     bootstrap_good.replace(b'[A31-XNU] TOPOLOGY-CHECK PASS\n', b''),
                     bootstrap_good + b'[A31-XNU] CPU-BOOTSTRAP-CHECK FAIL\n']:

@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- NEXT V22 RUNTIME GROUP prepared: patch0090 lets stage4 return, runs
+  rtclock_early_init, kernel_startup_bootstrap (tunables/timeouts/locks),
+  timer_call_init and cpu_init; checks ARM64/running/sleep-token0/timer
+  deadline/current-thread/CpuDatap before stage6 reset. Stage5 STARTUP-LOCKS
+  and stage6 CPU-INIT-CHECK are required in order with earlier checkpoints.
+  Stops BEFORE processor_bootstrap/VM/driver init. Actual target macros
+  show NMONOTONIC=0/NCONFIG_PV_TICKET=0, generic kpc_idle_exit empty;
+  standard ARM CPU/cache/debug registers only. Startup callbacks inspected:
+  DT/bootargs/timeouts/locks, KPRINTF initialization occurs later and is NOT
+  invoked yet. SP_EL1 exception stack setup already in start.s, SP0 is C stack.
+  Private research/a31-runtime-attempt/target-macros.txt and local compile.
+  Phone remains V21 in TWRP; full build/QEMU/native pending.
 - V21 NATIVE GROUPED CPU BOOTSTRAP PASS. Matching33a3983 pstore has ordered
   prior stages/platform PASS, stage3 ml_parse_cpu_topology/TOPOLOGY-CHECK PASS,
   stage4 cpu_bootstrap/CPU-BOOTSTRAP-CHECK PASS, RECOVERY REQUEST;

@@ -1,0 +1,57 @@
+A31: group early rtclock, startup tunables/timeouts/locks and cpu_init.
+Check runtime CPU data and stop before processor/VM startup.
+
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -513,6 +513,13 @@
+ 	timer_call_init();
+ 
+ 	cpu_init();
++#if defined(A31)
++	if (!BootCpuData.cpu_running || BootCpuData.cpu_type != CPU_TYPE_ARM64 ||
++	    BootCpuData.cpu_sleep_token != 0 ||
++	    BootCpuData.rtclock_timer.deadline != EndOfAllTime ||
++	    current_thread() != thread || thread->machine.CpuDatap != &BootCpuData)
++		sweet_early_mark(0, "CPU runtime initialization mismatch");
++#endif
+ 
+ 	sweet_early_mark(6, "cpu_init done");
+ 	processor_bootstrap();
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -146,7 +146,7 @@
+ #include <arm64/a31_entry_io.h>
+ #include <kern/misc_protos.h>
+ 
+-/* Stop after topology and bootstrap thread setup, before rtclock/kernel startup. */
++/* Stop after rtclock/startup locks and cpu_init, before processor/VM startup. */
+ static unsigned int a31_panicking;
+ static unsigned int a31_entry_seen;
+ 
+@@ -240,13 +240,26 @@
+     }
+     if (stage == 4 && a31_entry_seen == 5 && current_el == 4 &&
+         (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 6;
+         a31_string("[A31-XNU] CPU-BOOTSTRAP-CHECK PASS\n");
++        return;
++    }
++    if (stage == 5 && a31_entry_seen == 6 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 7;
++        a31_string("[A31-XNU] STARTUP-LOCKS-CHECK PASS\n");
++        return;
++    }
++    if (stage == 6 && a31_entry_seen == 7 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_string("[A31-XNU] CPU-INIT-CHECK PASS\n");
+     } else {
+         a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
+         a31_string("[A31-XNU] REBASE-CHECK FAIL\n");
+         a31_string("[A31-XNU] CPU-DATA-CHECK FAIL\n");
+         a31_string("[A31-XNU] PLATFORM-CHECK FAIL\n");
+         a31_string("[A31-XNU] CPU-BOOTSTRAP-CHECK FAIL\n");
++        a31_string("[A31-XNU] CPU-INIT-CHECK FAIL\n");
+     }
+     a31_return();
+ }

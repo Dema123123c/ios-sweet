@@ -29,7 +29,7 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
-        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|CPU-INIT-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
         entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
             '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
@@ -77,8 +77,18 @@ def inspect(data, expected_build):
         bootstrap_positions = [session.find(line + '\n') for line in bootstrap_markers]
         bootstrap_pass = (platform_pass and all(p >= 0 for p in bootstrap_positions) and
                           bootstrap_positions == sorted(bootstrap_positions))
+        runtime_markers = ['[A31-XNU] CPU-BOOTSTRAP-CHECK PASS',
+                           '[A31-XNU] C STAGE 5: kernel_startup_bootstrap done',
+                           '[A31-XNU] STARTUP-LOCKS-CHECK PASS',
+                           '[A31-XNU] C STAGE 6: cpu_init done',
+                           '[A31-XNU] CPU-INIT-CHECK PASS', '[A31-XNU] RECOVERY REQUEST']
+        runtime_positions = [session.find(line + '\n') for line in runtime_markers]
+        runtime_pass = (bootstrap_pass and all(p >= 0 for p in runtime_positions) and
+                        runtime_positions == sorted(runtime_positions))
         if entry_failure:
             status = 'fail'
+        elif runtime_pass:
+            status = 'xnu_cpu_init_pass'
         elif bootstrap_pass:
             status = 'xnu_cpu_bootstrap_pass'
         elif platform_pass:
@@ -101,6 +111,7 @@ def inspect(data, expected_build):
                       'xnu_cpu_data_pass': cpu_data_pass,
                       'xnu_platform_pass': platform_pass,
                       'xnu_cpu_bootstrap_pass': bootstrap_pass,
+                      'xnu_cpu_init_pass': runtime_pass,
                       'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
                       'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})

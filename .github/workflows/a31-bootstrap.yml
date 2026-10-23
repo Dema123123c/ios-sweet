@@ -21,6 +21,10 @@ on:
         description: Require grouped CPU topology and bootstrap-thread checkpoint
         type: boolean
         default: false
+      runtime:
+        description: Require early rtclock, startup locks and runtime CPU checkpoint
+        type: boolean
+        default: false
       pre_mmu_trap:
         description: Stop the exact V11 kernel at the audited instruction before MMU enable
         type: boolean
@@ -58,6 +62,7 @@ jobs:
           CPU_DATA: ${{ inputs.cpu_data && 'true' || 'false' }}
           PLATFORM: ${{ inputs.platform && 'true' || 'false' }}
           CPU_BOOTSTRAP: ${{ inputs.cpu_bootstrap && 'true' || 'false' }}
+          RUNTIME: ${{ inputs.runtime && 'true' || 'false' }}
         run: |
           gh run view "$KERNEL_RUN" --repo "$GITHUB_REPOSITORY" --json status,conclusion,headSha > research-run.json
           gh run download "$KERNEL_RUN" --repo "$GITHUB_REPOSITORY" --name xnu-kernel --dir research/v11-kernel
@@ -71,10 +76,11 @@ jobs:
           assert report['source'] == run['headSha']
           digest = hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest()
           assert digest == report['sha256']
-          if os.environ['POST_REBASE'] == 'true' or os.environ['CPU_DATA'] == 'true' or os.environ['PLATFORM'] == 'true' or os.environ['CPU_BOOTSTRAP'] == 'true':
+          if os.environ['POST_REBASE'] == 'true' or os.environ['CPU_DATA'] == 'true' or os.environ['PLATFORM'] == 'true' or os.environ['CPU_BOOTSTRAP'] == 'true' or os.environ['RUNTIME'] == 'true':
               # Bind kernel provenance to its successful run above; test-only
               # fixes may run against that same byte-identical kernel later.
-              expected_kind = ('A31 XNU CPU-bootstrap checkpoint only' if os.environ['CPU_BOOTSTRAP'] == 'true'
+              expected_kind = ('A31 XNU runtime-CPU checkpoint only' if os.environ['RUNTIME'] == 'true'
+                               else 'A31 XNU CPU-bootstrap checkpoint only' if os.environ['CPU_BOOTSTRAP'] == 'true'
                                else 'A31 XNU early-platform checkpoint only' if os.environ['PLATFORM'] == 'true'
                                else 'A31 XNU boot-CPU-data checkpoint only' if os.environ['CPU_DATA'] == 'true'
                                else 'A31 XNU post-rebase checkpoint only')
@@ -84,7 +90,7 @@ jobs:
               assert digest == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
           PY
       - name: Observe actual linked XNU bootstrap
-        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }} ${{ inputs.post_rebase && '--post-rebase' || '' }} ${{ inputs.cpu_data && '--cpu-data' || '' }} ${{ inputs.platform && '--platform' || '' }} ${{ inputs.cpu_bootstrap && '--cpu-bootstrap' || '' }}
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }} ${{ inputs.post_rebase && '--post-rebase' || '' }} ${{ inputs.cpu_data && '--cpu-data' || '' }} ${{ inputs.platform && '--platform' || '' }} ${{ inputs.cpu_bootstrap && '--cpu-bootstrap' || '' }} ${{ inputs.runtime && '--runtime' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
