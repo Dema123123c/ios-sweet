@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V11 WRITTEN/READ BACK/REBOOTED 2026-10-23 12:42:23 UTC, BOOT p35
+  only, SHA6c50bb064115f4b33ba684337eec8a671bb73a152d896179f528c0f9cd5e6b17.
+  Full32MiB readback matches; recovery/both vbmetas unchanged. Operation
+  research/a31-boot-fault-attempt/operation.json. Native loader session
+  cad95e14e4004a691c85529fcc635ccdef7c86a2. User asked short Power at
+  warning(s), no manual recovery keys first40s. Await physical result and
+  collect immediately into research/a31-v11-boot-fault-logs. Recoveryreturn
+  alone is not XNU PASS; inspect actual stage/fault/C-entry markers.
+  No result claimed yet. V11 currently installed, original BOOT not restored.
 - V11 FULL KERNEL AND BOOT PACKAGE READY, not yet flashed at checkpoint.
   Kernel CI39952374717 SUCCESS, source6326258, kernel17205432B SHA
   3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50.
