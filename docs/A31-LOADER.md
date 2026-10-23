@@ -34,10 +34,11 @@ The tested original A31 Mach-O is 17,171,976 bytes, SHA-256
 `78dad2f54e7a861d47fab8deef719368318ecc856f9873070d482eca52ffc629`.
 The current prepared payload contains ten segments and a 3,728-byte ADT.
 Its computed entry PA is `0x10148b488`, boot args PA `0x1024c8000`, top
-`0x1024cc000`. These addresses have not yet been used for native preparation
-at this source checkpoint. Local Linux EL0 tests on the A31 validated the
-actual payload, live FDT, simulated copying/BSS and exact boot args; they
-did not write those physical destinations or enter XNU.
+`0x1024cc000`. V7 used these addresses on the actual A31 and verified all copied segment
+bytes, BSS, ADT and boot arguments. Both recovered last_kmsg and pstore
+console sessions matched source b61c7caf8ae2333813f7ee665c33cca8e954428e
+and reported PAYLOAD COPY/READBACK PASS, XNU JUMP DISABLED and final PASS.
+The phone returned automatically to TWRP. XNU was not entered.
 
 `mka31diag.py --payload` replaces the original BOOT ramdisk only when the
 native manifest explicitly says prepare-only and kernel-jump-disabled.
@@ -48,7 +49,7 @@ The tool does not flash a device.
 
 QEMU checks both EL1 and EL2 preparation using a separate fixture in its
 own RAM window; C tests with sanitizers cover malformed data and write
-failure. Native hardware copying still requires a separate measured result.
+failure. V7 also passed copying on actual hardware.
 Success must include `PAYLOAD COPY/READBACK PASS` and `XNU JUMP DISABLED`.
 Neither that result nor simulator tests demonstrate XNU execution.
 

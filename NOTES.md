@@ -8,6 +8,21 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V7 NATIVE PREPARATION PASS on actual A31, 2026-10-23. Source
+  b61c7caf8ae2333813f7ee665c33cca8e954428e, installed BOOT SHA
+  01392251683dd543b355ab701fcc5afab5dcc3af6298910ddd6f843954c89eb0.
+  Full BOOT readback matched; recovery and both vbmetas unchanged. User
+  observed automatic return to TWRP. BOTH last_kmsg and console-ramoops
+  contain matching build/session, MMU16K PASS, timer IRQ3/other0, PAYLOAD
+  COPY/READBACK PASS, XNU JUMP DISABLED and final PASS. Payload16586896B
+  from47c80000 copied/read-verified at managed physical RAM above4GiB;
+  entry10148b488, ADT1024c4000, args1024c8000, top1024cc000.
+  Evidence private research/a31-v7-prepare-logs/report.json/raw logs and
+  research/a31-xnu-prepare-attempt/operation.json. This proves native
+  segment/BSS/ADT/boot-args preparation, NOT XNU execution or iOS boot.
+  V7 remains installed, leave phone TWRP; exact original BOOT restore
+  retained. NEXT: A31 early XNU RAM logging/mappings and panic recovery,
+  then a separately validated kernel-entry build. No other partitions.
 - V7 PREPARATION-CHECK PACKAGE READY (not yet written at this checkpoint).
   Source b61c7caf8ae2333813f7ee665c33cca8e954428e, CI39935851952 SUCCESS:
   49 Python tests, two ASan/UBSan C suites, EL1/EL2 normal, exception and
