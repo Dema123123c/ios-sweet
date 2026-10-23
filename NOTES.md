@@ -8,6 +8,21 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V9 PHYSICAL ENTRY BRK CONTROL READY, not yet flashed. Source
+  0ffbb56a2955ab947867889063186a486e1fdc9e, CI39949330935 SUCCESS:
+  57 Python, three C sanitizer suites and EL1/EL2 core, fault, prepare,
+  executable receiver and entry-BRK controls. Both BRK runs report exact
+  ESRf2000a31 and ELR50004000, without running original receiver code.
+  Artifacts research/a31-entry-brk-ci-0ffbb56. Native control compiled from
+  clean source; Image SHAf58775f9f27e6a0155e708343e150a34d625b649f46ac617483a2aa2c5de8b42.
+  Exact V8 payload reused, SHA8d60696d...6c030d, real entry10148c488.
+  Private outputs/a31-entry-brk-v9/diagnostic/boot.img 33554432B SHA
+  4c4913274df080235cfbb9dc0665c776b855f24fe36fbd00cf7e245e28ccf99b.
+  Original stock BOOT restore retained. Fresh packaging gates verify V8,
+  recovery/vbmetas, FDT unlocked/orange, pstore and memory/ADT equivalence.
+  Preflight research/a31-entry-brk-attempt. About to test BOOT only under
+  ongoing experimental authorization; native BRK result not known yet.
+  This mode executes BRK at the copied kernel entry, NO XNU instructions.
 - RESUMED ON USER REQUEST. ADB initially empty and no Samsung USB PnP;
   cable reconnect restored a31/TWRP and Windows USB interfaces OK. Read-only
   collector research/a31-v8-entry-logs found no matching4deaf94 session in
