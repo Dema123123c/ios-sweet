@@ -40,6 +40,8 @@ jobs:
           research/a31-diag/xnu-io-test
       - name: A31 Python format and log checks
         run: python3 -m unittest discover -s tools -p 'test_a31*.py' -v
+      - name: Execute mirrored XNU boot exception assembly without a stack
+        run: python3 shim/a31/test_xnu_boot.py --out research/a31-diag/boot-fault-tests
       - name: Build native diagnostic
         run: |
           python3 shim/a31/build.py --out research/a31-diag/native
@@ -96,4 +98,5 @@ jobs:
             research/a31-diag/test-entry-trap-results/
             research/a31-diag/qemu-early-brk/
             research/a31-diag/test-early-brk-results/
+            research/a31-diag/boot-fault-tests/
           retention-days: 7

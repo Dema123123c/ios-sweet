@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V11 BOOT-FAULT INSTRUMENTATION IMPLEMENTED, not flashed. Patch0084
+  installs dedicated PHYSICAL boot vectors, logs ESR/ELR/FAR/SCTLR/SP/slot
+  without stack/C/global pointers, clears M/C/I on fatal physical path,
+  then bounded SRAM recovery request + PSCI reset. Pre-stack/tables/MMU
+  stage markers added. Only boot CPU, before first-C return/TTBR0 teardown.
+  Shared shim/a31/xnu_boot_asm.inc is mirrored into XNU with identity test.
+  Baremetal QEMU harness tests SP=0, MMU off/on, five bad SRAM headers and
+  bad ring; final SMC replaced by test verification (NOT Samsung firmware).
+  Eight harness variants compile, native real-header C/assembly compile,
+  59 Python tests and git-apply check PASS. QEMU execution and full macOS
+  XNU link pending. V10 remains installed, phone TWRP; no partition writes.
+  Do not call this early-handler code hardware verified until native logs.
 - V10 FIRST VERIFIED ORIGINAL XNU EARLY ASSEMBLER EXECUTION on A31.
   User observed automatic TWRP return. Source d6add85 session recovered in
   research/a31-v10-early-brk-logs. Console-ramoops contains actual original

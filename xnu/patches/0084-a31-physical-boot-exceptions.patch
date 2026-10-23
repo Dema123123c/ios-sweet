@@ -1,0 +1,300 @@
+A31: fatal physical boot vectors and stage markers before C/MMU startup.
+
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -537,8 +537,13 @@
+ #endif
+ 
+ 	// Set low reset vector before attempting any loads
++#if defined(A31)
++	adrp x0, EXT(a31_boot_vectors)@page
++	add x0, x0, EXT(a31_boot_vectors)@pageoff
++#else
+ 	adrp	x0, EXT(LowExceptionVectorBase)@page
+ 	add		x0, x0, EXT(LowExceptionVectorBase)@pageoff
++#endif
+ 	MSR_VBAR_EL1_X0
+ 
+ 
+@@ -555,6 +560,13 @@
+ 	msr		TPIDRRO_EL0, xzr
+ 	msr		TPIDR_EL0, xzr
+ 
++#if defined(A31)
++	mov x27, lr
++	adrp x8, EXT(a31_boot_msg_stack)@page
++	add x8, x8, EXT(a31_boot_msg_stack)@pageoff
++	bl EXT(a31_boot_string)
++	mov lr, x27
++#endif
+ 	// Set up exception stack pointer
+ 	adrp	x0, EXT(excepstack_top)@page		// Load top of exception stack
+ 	add		x0, x0, EXT(excepstack_top)@pageoff
+@@ -759,6 +771,13 @@
+ 
+ 	/* Ensure TTEs are visible */
+ 	dsb		ish
++#if defined(A31)
++	mov x27, lr
++	adrp x8, EXT(a31_boot_msg_tables)@page
++	add x8, x8, EXT(a31_boot_msg_tables)@pageoff
++	bl EXT(a31_boot_string)
++	mov lr, x27
++#endif
+ 
+ 
+ 	b		common_start
+@@ -873,6 +892,11 @@
+ 	MSR_TTBR1_EL1_X0
+ 1:
+ 
++#if defined(A31)
++	/* Fatal entry-only vectors stay physical through the MMU transition. */
++	adrp x0, EXT(a31_boot_vectors)@page
++	add x0, x0, EXT(a31_boot_vectors)@pageoff
++#else
+ 	// Set up the exception vectors
+ #if __ARM_KERNEL_PROTECT__
+ 	/* If this is not the first reset of the boot CPU, the alternate mapping
+@@ -888,12 +912,20 @@
+ 	add		x0, x0, x22									// Convert exception vector address to KVA
+ 	sub		x0, x0, x23
+ 1:
++#endif
+ 	MSR_VBAR_EL1_X0
+ 
+ #if HAS_APPLE_PAC
+ 	PAC_INIT_KEY_STATE tmp=x0, tmp2=x1
+ #endif /* HAS_APPLE_PAC */
+ 
++#if defined(A31)
++	mov x27, lr
++	adrp x8, EXT(a31_boot_msg_mmu)@page
++	add x8, x8, EXT(a31_boot_msg_mmu)@pageoff
++	bl EXT(a31_boot_string)
++	mov lr, x27
++#endif
+ 	// Enable caches, MMU, ROP and JOP
+ 	MOV64   x0, SCTLR_EL1_DEFAULT
+ 	MSR_SCTLR_EL1_X0
+@@ -1078,3 +1110,10 @@
+     .asciz "\n[A31-XNU] ENTRY MMU-OFF v1\n"
+     .align 2
+ #endif
++
++#if defined(A31)
++#define A31_BOOT_LOG_PA 0x4d05f000
++#define A31_BOOT_SRAM_PA 0x10dc00
++#define A31_BOOT_TEST 0
++#include <arm64/a31_boot_asm.inc>
++#endif
+--- /dev/null
++++ b/osfmk/arm64/a31_boot_asm.inc
+@@ -0,0 +1,207 @@
++/* Mirrored into XNU patch 0084. Fatal, boot-CPU-only physical vectors.
++ * No stack, global pointers, allocation, or return into the failed kernel.
++ * A31_BOOT_LOG_PA / A31_BOOT_SRAM_PA are fixed by the including platform.
++ */
++    .text
++    .balign 2048
++    .globl EXT(a31_boot_vectors)
++LEXT(a31_boot_vectors)
++.macro a31_boot_vector index
++    .balign 128
++    mov x23, #\index
++    b EXT(a31_boot_fault)
++.endmacro
++    a31_boot_vector 0
++    a31_boot_vector 1
++    a31_boot_vector 2
++    a31_boot_vector 3
++    a31_boot_vector 4
++    a31_boot_vector 5
++    a31_boot_vector 6
++    a31_boot_vector 7
++    a31_boot_vector 8
++    a31_boot_vector 9
++    a31_boot_vector 10
++    a31_boot_vector 11
++    a31_boot_vector 12
++    a31_boot_vector 13
++    a31_boot_vector 14
++    a31_boot_vector 15
++    .balign 2048
++    .globl EXT(a31_boot_fault)
++LEXT(a31_boot_fault)
++    msr daifset, #15
++    mrs x19, esr_el1
++    mrs x20, elr_el1
++    mrs x21, far_el1
++    mrs x22, sctlr_el1
++    mov x24, sp
++    /* VBAR and this handler are physical and identity-mapped. Fatal boot
++     * discards kernel-private dirty state; pstore uses only NC/device pages.
++     * Leave translation before accessing log/SRAM, even for a bad I/O PTE.
++     */
++    dsb sy
++    mov x9, #0x1005
++    bic x9, x22, x9
++    msr sctlr_el1, x9
++    isb
++    adr x8, La31_fault_message
++    bl EXT(a31_boot_string)
++    adr x8, La31_esr_message
++    bl EXT(a31_boot_string)
++    mov x8, x19
++    bl EXT(a31_boot_hex)
++    adr x8, La31_elr_message
++    bl EXT(a31_boot_string)
++    mov x8, x20
++    bl EXT(a31_boot_hex)
++    adr x8, La31_far_message
++    bl EXT(a31_boot_string)
++    mov x8, x21
++    bl EXT(a31_boot_hex)
++    adr x8, La31_sctlr_message
++    bl EXT(a31_boot_string)
++    mov x8, x22
++    bl EXT(a31_boot_hex)
++    adr x8, La31_sp_message
++    bl EXT(a31_boot_string)
++    mov x8, x24
++    bl EXT(a31_boot_hex)
++    adr x8, La31_slot_message
++    bl EXT(a31_boot_string)
++    mov x8, x23
++    bl EXT(a31_boot_hex)
++    b EXT(a31_boot_recovery)
++
++/* x8=value/string, x0,x9-x17 scratch. x19-x27 remain diagnostic state. */
++    .globl EXT(a31_boot_string)
++LEXT(a31_boot_string)
++    mov x17, lr
++La31_boot_string_loop:
++    ldrb w0, [x8], #1
++    cbz w0, La31_boot_string_done
++    bl EXT(a31_boot_putc)
++    b La31_boot_string_loop
++La31_boot_string_done:
++    dsb sy
++    br x17
++LEXT(a31_boot_hex)
++    mov x17, lr
++    mov x0, #'0'
++    bl EXT(a31_boot_putc)
++    mov x0, #'x'
++    bl EXT(a31_boot_putc)
++    mov x16, #60
++La31_boot_hex_loop:
++    lsr x0, x8, x16
++    and x0, x0, #15
++    cmp x0, #9
++    add x0, x0, #'0'
++    add x14, x0, #39
++    csel x0, x14, x0, hi
++    bl EXT(a31_boot_putc)
++    subs x16, x16, #4
++    b.ge La31_boot_hex_loop
++    mov x0, #10
++    bl EXT(a31_boot_putc)
++    dsb sy
++    br x17
++LEXT(a31_boot_putc)
++    MOV64 x9, A31_BOOT_LOG_PA
++    ldr w10, [x9]
++    MOV64 x11, 0x43474244
++    cmp w10, w11
++    b.ne La31_boot_putc_done
++    ldr w10, [x9, #4]
++    ldr w12, [x9, #8]
++    MOV64 x11, 0x3fff4
++    cmp w10, w11
++    b.hs La31_boot_putc_done
++    cmp w12, w11
++    b.hi La31_boot_putc_done
++    b.eq La31_boot_ring_valid
++    cmp w10, w12
++    b.ne La31_boot_putc_done
++La31_boot_ring_valid:
++    add x13, x9, #12
++    strb w0, [x13, x10]
++    add w10, w10, #1
++    cmp w10, w11
++    csel w10, wzr, w10, eq
++    str w10, [x9, #4]
++    cmp w12, w11
++    b.eq La31_boot_putc_done
++    add w12, w12, #1
++    str w12, [x9, #8]
++La31_boot_putc_done:
++    ret
++
++LEXT(a31_boot_recovery)
++    MOV64 x9, A31_BOOT_SRAM_PA
++    ldr w10, [x9]
++    MOV64 x11, 0x43474244
++    cmp w10, w11
++    b.ne La31_boot_reset_bad
++    ldr w10, [x9, #0x28]
++    cmp w10, #0x800
++    b.ne La31_boot_reset_bad
++    ldr w10, [x9, #0x2c]
++    cmp w10, #64
++    b.lo La31_boot_reset_bad
++    tst w10, #63
++    b.ne La31_boot_reset_bad
++    cmp w10, #0x404
++    b.hi La31_boot_reset_bad
++    ldr w11, [x9, #0x30]
++    cmp w11, #0x800
++    b.hi La31_boot_reset_bad
++    add w12, w10, #0x3fc
++    cmp w11, w12
++    b.lo La31_boot_reset_bad
++    add x9, x9, x10
++    str wzr, [x9, #0x3ec]
++    MOV64 x10, 0x12345678
++    str w10, [x9, #0x3f4]
++    sub w10, w10, #4
++    str w10, [x9, #0x3f8]
++    adr x8, La31_request_message
++    bl EXT(a31_boot_string)
++    dsb sy
++    isb
++#if A31_BOOT_TEST
++    mov x0, #0
++    b a31_boot_test_finish
++#else
++    MOV64 x0, 0x84000009
++    mov x1, xzr
++    mov x2, xzr
++    mov x3, xzr
++    smc #0
++#endif
++La31_boot_reset_bad:
++    adr x8, La31_reset_bad_message
++    bl EXT(a31_boot_string)
++#if A31_BOOT_TEST
++    mov x0, #1
++    b a31_boot_test_finish
++#endif
++La31_boot_halt:
++    wfe
++    b La31_boot_halt
++
++La31_fault_message: .asciz "\n[A31-XNU] BOOT EXCEPTION\n"
++La31_esr_message: .asciz "XNU_FAULT_ESR="
++La31_elr_message: .asciz "XNU_FAULT_ELR="
++La31_far_message: .asciz "XNU_FAULT_FAR="
++La31_sctlr_message: .asciz "XNU_FAULT_SCTLR="
++La31_sp_message: .asciz "XNU_FAULT_SP="
++La31_slot_message: .asciz "XNU_FAULT_SLOT="
++La31_request_message: .asciz "[A31-XNU] BOOT RECOVERY REQUEST\n"
++La31_reset_bad_message: .asciz "[A31-XNU] BOOT RECOVERY FAILED\n"
++    .globl EXT(a31_boot_msg_stack)
++LEXT(a31_boot_msg_stack) .asciz "[A31-XNU] STACKS NEXT\n"
++    .globl EXT(a31_boot_msg_tables)
++LEXT(a31_boot_msg_tables) .asciz "[A31-XNU] TABLES READY\n"
++    .globl EXT(a31_boot_msg_mmu)
++LEXT(a31_boot_msg_mmu) .asciz "[A31-XNU] MMU ENABLE NEXT\n"
++    .balign 4

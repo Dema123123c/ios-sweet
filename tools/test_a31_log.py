@@ -47,7 +47,8 @@ class A31LogTests(unittest.TestCase):
 
     def test_kernel_failure_overrides_checkpoint_pass(self):
         for error in [b'[A31-XNU] ENTRY-CHECK FAIL\n', b'[A31-XNU] PANIC: failure\n',
-                      b'[A31-XNU] RECOVERY FAILED\n', b'[A31-DIAG] FAIL exception\n']:
+                      b'[A31-XNU] RECOVERY FAILED\n', b'[A31-DIAG] FAIL exception\n',
+                      b'[A31-XNU] BOOT EXCEPTION\n', b'[A31-XNU] BOOT RECOVERY FAILED\n']:
             self.assertEqual(inspect(BEGIN + ENTRY_PASS + error, BUILD)['status'], 'fail')
 
     def test_kernel_markers_cannot_be_borrowed_from_next_loader_build(self):

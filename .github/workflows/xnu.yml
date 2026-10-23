@@ -113,7 +113,9 @@ jobs:
           data = kernel.read_bytes()
           result = validate_kernel(data)
           for marker in (b'[A31-XNU] ENTRY MMU-OFF v1', b'[A31-XNU] ENTRY-CHECK PASS',
-                         b'[A31-XNU] RECOVERY REQUEST', b'XNU_SCTLR_EL1='):
+                         b'[A31-XNU] RECOVERY REQUEST', b'XNU_SCTLR_EL1=',
+                         b'[A31-XNU] BOOT EXCEPTION', b'[A31-XNU] STACKS NEXT',
+                         b'[A31-XNU] TABLES READY', b'[A31-XNU] MMU ENABLE NEXT'):
               if marker not in data:
                   raise SystemExit('A31 entry-check code missing from linked kernel')
           result.update(source=os.environ['GITHUB_SHA'], kind='A31 XNU entry checkpoint only',

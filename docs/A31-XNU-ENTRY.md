@@ -106,3 +106,30 @@ last_kmsg contains the matching shim/trap result but omits the XNU marker;
 only pstore supplies full original-assembler evidence. C entry and the
 kernel's own MMU initialization are not yet verified. The next task is a
 stack-independent early exception log/return path across those transitions.
+
+## Fatal boot-vector instrumentation after V10
+
+Patch0084 installs a dedicated physical VBAR for the boot CPU, retaining
+it through the MMU transition. It logs STACKS NEXT, TABLES READY and MMU
+ENABLE NEXT. This entry-only kernel still stops at first C; it never
+removes TTBR0 or starts secondary CPUs. These are not general runtime
+exception handlers and must not be reused after the identity map is gone.
+
+The shared assembly include records ESR/ELR/FAR/SCTLR/SP/vector slot without
+using SP, calling C or dereferencing global pointers. At physical VBAR it
+can clear M/C/I before logging, avoiding dependence on a broken low I/O PTE.
+This fatal boot path discards kernel-private dirty state; its pstore mapping
+is NC and its SRAM mapping Device. It preserves no running OS and never
+resumes the failed kernel. It validates the same DBGC header/bounded Linux
+structure as the verified recovery ABI, writes only the three request
+words and issues PSCI SYSTEM_RESET. Bad SRAM headers receive no writes.
+
+The include is mirrored byte-for-byte into XNU, enforced by Python tests.
+A separate bare-metal QEMU harness executes that exact assembly from both
+incoming EL1 and EL2, with SP=0, MMU off/on, five malformed SRAM-header
+variants and an invalid ring header. It checks exact saved fault fields,
+cache/MMU shutdown and every SRAM word. Test-only completion replaces the
+final SMC after the guarded writes; it does not test Samsung firmware.
+The native include uses fixed physical addresses and the real SMC.
+An exception before the physical vector is installed or with an unfetchable
+identity-mapped code page still has no guaranteed recovery path.

@@ -29,7 +29,7 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
-        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|PANIC:|RECOVERY FAILED)', session, re.M)
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
         entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
             '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
