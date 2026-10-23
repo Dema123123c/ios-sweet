@@ -8,6 +8,19 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- PRE-MMU V13 READY, not flashed at checkpoint. QEMU CI39959404057
+  SUCCESS sourceee57b9545da323492f3d8c92760adf3776456158: exact BRK
+  ESRf2000a31/ELR10148e4f8 after all stack/table/MMU NEXT markers, M=0.
+  Separate patched V11 kernel70336550...89b97e; original untouched.
+  Native sourceee57b95, Image22f6914ece78f8a27b47ba4e97f29b494ca269db345cab52fd47f664208fc1a6.
+  Payload0c8dcd7f04b2b1b62501deaf4819a250a10c86e306429ff8eaa48c05b51b70d8.
+  BOOT outputs/a31-pre-mmu-v13/diagnostic/boot.img 32MiB SHA
+  b68414bce66b1c78369bf0da2b6bcbbfd401ebf017dfaf1d75691113f7d56a4e.
+  Fresh V6 current BOOT/recovery/vbmetas/unlocked/orange/pstore gates PASS.
+  Private preflight/script research/a31-pre-mmu-attempt. Watchdog OFF.
+  Needs BOOT-only native test and collect expectedee57b95. BOOT EXCEPTION
+  is INTENTIONAL only if exact ESR/ELR/M=0/stage markers all match; generic
+  collector will say fail. Do not interpret any other exception as PASS.
 - V6 BASELINE RECHECK PASSED NATIVELY: sourcea678d2c expected complete
   PASS recovered in BOTH last_kmsg/pstore, MMU16K and timer3/other0,
   PSCI1.1, auto TWRP. Evidence research/a31-v6-reference-recheck-logs.
