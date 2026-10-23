@@ -8,6 +8,9 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- Bootstrap CI39957135181 SUCCESS at source19c7c9b with strict actual
+  first-C/MMU/stage/EL/frequency assertions. Final ADB check: recovery.
+  Working tree clean after saving checkpoint; no additional native test.
 - ACTUAL V11 LINKED KERNEL FIRST C/MMU PASS IN QEMU ONLY. Bootstrap CI
   39956681635 SUCCESS, source1427652, kernel3486ac51...8c0c50 unchanged.
   Raw pstore/monitor/report: research/a31-bootstrap-ci-39956681635.
