@@ -8,6 +8,20 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- PAUSED AT USER REQUEST, 2026-10-23. User reports V8 remained on the
+  Samsung splash after the test, then explicitly requested saving everything
+  and stopping work. Automatic recovery return was NOT observed. No native
+  V8 logs were recovered; XNU physical entry/first-C checkpoint remain
+  UNCONFIRMED. A visible splash alone does not locate the fault.
+  No more phone commands, writes, reboots or tests after this stop request.
+  Installed BOOT remains V8 SHA59f8a8e07f1add14fb86651efd5263f1a1e52b09d6a9cfb4e7875631f6205357;
+  original BOOT has NOT been restored. Recovery was last verified intact.
+  All code is committed; packages, original BOOT restore, raw captures,
+  payloads and operation journal remain in their existing private folders.
+  Resume ONLY on user request: first establish current phone state; if
+  TWRP is available, collect matching4deaf94 logs before another reboot.
+  Do not blindly reflash V8 or claim native XNU success. V7 preparation
+  PASS remains the last confirmed native milestone. No pending automation.
 - V8 USER ACTION/RESULT STILL PENDING at turn handoff. The 55-second
   wait-for-recovery collector timed out; a subsequent adb devices list
   was empty. No V8 log folder/result collected, and no user screen report
