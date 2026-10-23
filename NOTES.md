@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V12 first return: user confirms ONLY short Power, auto TWRP. Captures
+  research/a31-v12-watchdog-control-logs have NO expected session, pstore
+  absent. Bootloader reports wdt_status800, reboot_longkey, PARAM_REBOOT_MODE4,
+  loaded RECOVERY. No proof control ran or watchdog expired; NOT PASS.
+  Readback confirms V12 BOOT unchanged. Retesting same image using TWRP
+  CLI `twrp reboot` (default system), not another write. CLI accepted,
+  printed failed data mounts + Done; no formatting commands issued.
+  User asked short Power only, result pending; waiting capture into
+  research/a31-v12-watchdog-system-logs. Compare fresh boot ID (prior
+  b094627a-0e92-4902-bc47-0598d83167c1) to ensure actual reboot occurred.
+  Need native WAIT marker/reset/log retention evidence before WDT handoff.
 - V12 WATCHDOG CONTROL WRITTEN/READ BACK/REBOOTED 2026-10-23 13:04:07 UTC.
   BOOT p35 only SHA3da2c170075231f6becb4ec2839f1b852e9a00ce151a13e094cc8e0846c3bd29.
   Full readback matches; recovery/both vbmetas unchanged, unlocked/orange.
