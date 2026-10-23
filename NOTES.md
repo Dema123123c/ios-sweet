@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V16 C PROLOGUE CONTROL READY, not flashed at checkpoint. QEMU
+  CI39961861994 SUCCESS source288293613e23f547657f42524faf5e492df03932.
+  Exact BRK at VAfffffe0007ad5030 after arm_init stack stores, M=1.
+  Separate kernel5e9becae2c43b9dd973a78d28b50e5707e2fc0668998fadecbcf105687c7753b
+  replaces only audited BL sweet_early_mark; original V11 untouched.
+  Imagea225ae10...bc0d2d8a, payload64dfd86e2a5f9be8048c9ded9187a121dc2a91ba706cc040d63a1474335a08d6.
+  outputs/a31-c-prologue-v16/diagnostic/boot.img 32MiB SHA
+  028ea1af5689a94de7fdd767ce15511a760329656fccaf900bd84fafa0ee672f.
+  Fresh V15/recovery/vbmeta/unlocked/pstore gates PASS; restore retained.
+  Private research/a31-c-prologue-attempt. Native test needs exact BRK
+  ESRf2000a31/ELRfffffe0007ad5030, M=1, SPfffffe00080b3f30. No WDT.
 - V15 ACTUAL NATIVE HIGH-KVA arm_init ENTRY CHECKPOINT PASS. Pstore
   expectedd569095 has exact ESRf2000a31/ELRfffffe0007ad4fe8/M=1,
   stage markers and software recovery return. Evidence
