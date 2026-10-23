@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V10 EARLY-ASSEMBLER CHECKPOINT READY, not written at checkpoint.
+  Sourced6add8504fc579db83c3655e995c1a435c7be4fd, CI39950087301 SUCCESS,
+  58 Python, C sanitizers, all EL1/EL2 previous modes plus synthetic early
+  receiver stopped at exact +1c78 with ESRf2000a31 and no overstep.
+  Artifacts research/a31-early-brk-ci-d6add85. Native Image SHAd930ca62939b34d6ada25b4c4d4e2f90b191ddc0ff3cefc447fa66d8720eb182.
+  Private outputs/a31-early-brk-v10/diagnostic/boot.img 33554432B SHA
+  65ba8cb2db6455d294e26215f7775932ccfe5dda4021ae5acc01c6c6999409bf.
+  Exact V8 payload unchanged. Fresh gates verify V9 current BOOT, recovery,
+  vbmetas, unlocked/orange, RAM/ADT and pstore. Original restore retained.
+  Preflight research/a31-early-brk-attempt. About to test BOOT only under
+  ongoing authorization; native early assembler result not yet known.
 - NEXT PRE-VBAR EARLY-ASSEMBLER CHECKPOINT implemented, not flashed.
   Audited actual V8 words: entry14000719 branches to PA10148e0ec;
   OSLAR/DAIF/MOV x20/MOV x21/BL entry_record precede ADRPf0ffffe0 at
