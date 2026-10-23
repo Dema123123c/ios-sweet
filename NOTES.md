@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V12 WATCHDOG CONTROL WRITTEN/READ BACK/REBOOTED 2026-10-23 13:04:07 UTC.
+  BOOT p35 only SHA3da2c170075231f6becb4ec2839f1b852e9a00ce151a13e094cc8e0846c3bd29.
+  Full readback matches; recovery/both vbmetas unchanged, unlocked/orange.
+  Operation research/a31-watchdog-control-attempt/operation.json. User
+  asked short Power at warning(s), no manual keys first30s. Await native
+  result/auto recovery, immediately collect expected7c8cd38 into
+  research/a31-v12-watchdog-control-logs and inspect WAIT/failure/reboot
+  reason. This control has NO XNU jump; no reset/log-retention PASS yet.
+  Original BOOT not restored; V12 remains installed until next checkpoint.
 - WATCHDOG CONTROL V12 PACKAGE READY, not flashed at checkpoint.
   CI39957923956 SUCCESS source7c8cd384436f620790f6dce80af56e802505c48a:
   60 Python, watchdog C sanitizers/write-order/mode gates,20 boot-fault
