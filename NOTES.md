@@ -8,6 +8,32 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- FIRST VERIFIED NATIVE DIAGNOSTIC PASS on the actual A31, 2026-10-23.
+  V6 source a678d2ce7cb4dd427afab315993e7c45bc042185. Recovered matching
+  session from BOTH /proc/last_kmsg and /sys/fs/pstore/console-ramoops:
+  ENTRY_EL=1, MIDR411fd050, SCTLR30d00800, PSCI1.1, WDT_MODE5d->5c,
+  CNTFRQ13000000, MMU16K_PAR440000004009cb00, MMU16K PASS, virtual timer
+  IRQ count3/other0, VTIMER PASS and final [A31-DIAG] PASS. Then RECOVERY
+  RETURN REQUESTED; automatic TWRP return observed. This proves native shim
+  execution, real 16KiB alias translation, GICv3 timer delivery, WDT stop,
+  and the tested software-return/log-persistence path. It is NOT an XNU boot.
+- User clarified exact sequence: short Power on initial warning, phone
+  reset itself, waited, short Power on second warning, TWRP opened. No
+  forced recovery-key combo in V6 test. Two warning confirmations occurred
+  across two boots; do not mistake them for a native boot loop.
+- Evidence private research/a31-v6-auto-return-logs/report.json and raw
+  logs. Post-success twice-read capture research/a31-v6-after-success-capture
+  confirms V6 BOOT6900f17b...eb23bd6 remains installed, TWRP d8a89533...cd890,
+  dtbo and both vbmetas unchanged, fresh FDT unlocked/orange. Operation
+  research/a31-auto-return-attempt/operation.json includes native_result=pass,
+  recovery_return_observed=true, restore_pending=true. No original BOOT
+  restore after V6; leave phone TWRP while developing. No Data/TEE1/vbmeta/
+  bootloader writes. Current shell uid0/su; kptr_restrict restored2.
+- NEXT: standalone A31 XNU payload loading/handoff, using the already-built
+  plain-arm64 kernel 62ac3e2 and validated A31 ADT. Add native kernel logging
+  and panic recovery before a kernel attempt. Do NOT reuse Redmi loader's
+  Qualcomm reset/UFS/display addresses or treat this diagnostic as iOS.
+  End-to-end iOS, storage/display/input/USB remain incomplete.
 - V6 AUTO-RETURN PACKAGE READY; about to test BOOT only under ongoing
   experimental authorization. Source a678d2ce7cb4dd427afab315993e7c45bc042185,
   CI 39932859508 SUCCESS (38 Python, C ASan/UBSan, EL1/EL2 QEMU normal and

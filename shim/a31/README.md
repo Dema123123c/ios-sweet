@@ -6,7 +6,7 @@ CPUs. It enters EL1 (including an EL2 handoff), checks 16 KiB translation
 through a distinct virtual alias, and checks three virtual-timer interrupts
 through GICv3. The updated native build attempts a software return to the
 matching TWRP after logging a result. If entry or return fails, manual
-recovery remains necessary. Native software return is not yet tested.
+recovery remains necessary. V6 software return was verified on the A31.
 
 The entry path sets a stack and exception vectors at the incoming EL1 or
 EL2 before the EL2-to-EL1 handoff. After validating the FDT and reserved
@@ -15,7 +15,11 @@ log ranges, it records `EARLY_CURRENT_EL`, `ENTRY_SCTLR` and
 entry to the main diagnostic. EL2 exceptions record ESR/ELR/FAR at EL2.
 The early log cannot observe rejection before image entry, an unsupported
 entry EL, MMU/cache enabled on entry, or a fault before log binding.
-No native entry marker has been recovered from this phone yet.
+On 2026-10-23 V6 (source a678d2c) produced a recovered native PASS session:
+EL1 entry, real 16 KiB alias translation, three virtual-timer IRQs, WDT
+MODE.EN clear, and automatic return to TWRP. Both last_kmsg and the actual
+pstore console exported the matching build session. This is a shim result,
+not an XNU or iOS boot. Raw per-device evidence remains private.
 
 The software-return candidate validates the exact `/chosen/ram_console`
 SRAM descriptor, its live header and Linux-field bounds, and the FDT PSCI
@@ -29,10 +33,10 @@ EN-bit clear remains. See [reset evidence](../../docs/A31-RESET.md).
 The native build accepts the captured MT6768 platform and the Samsung
 sec-log reserved region at 0x46c00000 / 2 MiB. It appends to the LOGM ring
 described in Samsung's `drivers/samsung/misc/sec_log.c`; Linux normally
-copies the old ring to `/proc/last_kmsg`. Persistence across this phone's
-bootloader/recovery sequence has not yielded a diagnostic session. On the
-latest recovery boot, `last_kmsg` instead exports LK logs, so it cannot be
-assumed to contain the previous Linux/kernel log.
+copies the old ring to `/proc/last_kmsg`. Older manual returns yielded no
+session, and some last_kmsg reads exported LK output instead. With V6's
+software return, last_kmsg contains the recovered diagnostic. Its origin
+must be checked for each boot, not assumed to be the previous kernel.
 
 The updated native build additionally appends Linux persistent-RAM console
 records in the observed pstore reservation: 0x4d010000 / 0xe0000. The measured
@@ -45,17 +49,18 @@ fresh recovery sysfs profile. Collection includes
 indexed `console-ramoops-0` variant. A control record written through
 Linux `/dev/pmsg0` survived an actual TWRP reboot and was read from
 `pmsg-ramoops-0`, proving that the recovery pstore backend can persist data.
-V4 has now been booted on the phone, but native console persistence remains
-unproven: after overnight bootloops and a return to TWRP, neither console
-file was exposed and no matching session was found in sec_log/last_kmsg.
-Power loss and intervening reboots prevent localising the failure from that
-absence alone. The PMSG control test only establishes Linux persistence.
+V4 and V5 did not produce a recovered session through manual return. A Linux
+PMSG control also disappeared through that route, while software reboot
+recovered its unique marker. V6 then recovered its complete native session
+through software return, establishing persistence on that tested path.
+Manual return remains unsuitable for interpreting absence of native logs.
 
 After logging entry, the native build checks the `mediatek,toprgu` FDT range
 at 0x10007000 / 4 KiB, records watchdog MODE/STATUS, and clears only MODE.EN
 using key 0x22000000, as the A31 kernel's `mtk_wdt_stop()` does. It verifies
-EN stayed clear. Watchdog reset is a hypothesis, not a measured explanation
-of the earlier bootloop. The QEMU build does not access these registers.
+EN stayed clear. V6 measured MODE 0x5d before and 0x5c after, logging WDT OFF.
+This does not establish that watchdog reset caused the earlier bootloop.
+The QEMU build does not access these registers.
 
 No framebuffer writes or
 Qualcomm restart/USB/UFS register accesses are included.

@@ -52,8 +52,22 @@ After validating the FDT PSCI SMC method and supported PSCI_VERSION, finish
 writes those three words, issues a system barrier, and invokes standard
 PSCI SYSTEM_RESET (`0x84000009`). It does not use MediaTek reset registers,
 write PMIC state or modify any storage partition to select recovery.
-The existing native watchdog stop is unchanged. Native reset, recovery
-selection and log retention through this candidate remain unverified.
+The existing native watchdog stop is unchanged.
+
+## First native result, 2026-10-23
+
+Source `a678d2ce7cb4dd427afab315993e7c45bc042185` completed its diagnostic
+on the A31. Both `/proc/last_kmsg` and `/sys/fs/pstore/console-ramoops`
+contained the same expected-build PASS session: EL1 entry, 16 KiB MMU
+alias PASS, three virtual-timer IRQs and no other IRQs, WDT MODE 0x5d to
+0x5c, PSCI version 1.1, and RECOVERY RETURN REQUESTED. The phone reset itself
+and opened TWRP after the user acknowledged the second boot warning with
+a short Power press. No forced recovery-key combination was used.
+
+This verifies native diagnostic execution and this software-return/log
+retention path. It does not establish an XNU or iOS boot. Post-test full
+partition reads confirmed the diagnostic BOOT remained installed, with
+TWRP and both vbmetas unchanged and the loader still unlocked/orange.
 
 Host tests check the SRAM bounds and that every other word remains intact;
 QEMU checks exercise diagnostic entry/exception paths, not Samsung reset
