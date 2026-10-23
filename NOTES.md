@@ -8,6 +8,11 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V11 USER OBSERVED SAMSUNG SPLASH after40s, no automatic TWRP return.
+  ADB absent after55s. Requested manual button return to TWRP, then no
+  further reboot, to collect logs. Manual long-key reset previously lost
+  pstore markers, so missing logs after this return will NOT locate fault.
+  V11 remains installed. Physical fault handler/C-entry execution unproven.
 - V11 WRITTEN/READ BACK/REBOOTED 2026-10-23 12:42:23 UTC, BOOT p35
   only, SHA6c50bb064115f4b33ba684337eec8a671bb73a152d896179f528c0f9cd5e6b17.
   Full32MiB readback matches; recovery/both vbmetas unchanged. Operation
