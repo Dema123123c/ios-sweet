@@ -68,7 +68,7 @@ _start:
     command = ['qemu-system-aarch64', '-machine', 'virt,gic-version=3,virtualization=off',
                '-cpu', 'max', '-m', '5G', '-smp', '1', '-display', 'none', '-nic', 'none',
                '-serial', f'file:{out / "serial.log"}', '-monitor', 'stdio',
-               '-action', 'reboot=pause', '-kernel', str(image)] + files
+               '-no-reboot', '-kernel', str(image)] + files
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     try:
         time.sleep(8)
