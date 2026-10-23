@@ -31,6 +31,21 @@ int main(int argc, char **argv)
     assert(dt_reg(&dt, node, 1, &base, &size) && base == 0x0c040000 && size == 0x200000);
     assert(!dt_reg(&dt, node, 2, &base, &size));
     assert(!dt_compatible(&dt, "arm,not-a-device", &node));
+    assert(dt_ram_available(&dt, 0x100000000ULL, 0x3fd00000));
+    assert(!dt_ram_available(&dt, 0x50000000, 0x4000));
+    assert(!dt_ram_available(&dt, 0x140000000ULL, 0x4000));
+    assert(!dt_ram_available(&dt, UINT64_MAX - 7, 16));
+    assert(!dt_ram_available(&dt, 0x100000000ULL, 0));
+    if (dt_reserved(&dt, "pool", &node)) {
+        struct dt_property property;
+        assert(dt_property(&dt, node, "size", &property) && property.size == 8);
+        uint8_t saved[8];
+        memcpy(saved, property.data, 8);
+        memset((void *)property.data, 0, 8);
+        assert(!dt_ram_available(&dt, 0x100000000ULL, 0x3fd00000));
+        memcpy((void *)property.data, saved, 8);
+        assert(dt_ram_available(&dt, 0x100000000ULL, 0x3fd00000));
+    }
     assert(dt_root_child(&dt, "reserved-memory", &node));
     assert(!dt_root_child(&dt, "firmware", &node));
     assert(!dt_root_child(&dt, "absent", &node));

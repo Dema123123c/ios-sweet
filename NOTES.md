@@ -8,6 +8,30 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- USER AUTHORIZED CONTINUE after V6 success. New independent A31 payload
+  loader source prepares/read-verifies segments, BSS, ADT and boot args;
+  XNU jump is deliberately absent until kernel logging/panic recovery exists.
+  docs/A31-LOADER.md describes policy/tests. Native payload-check build
+  fixes destination policy at 100000000 +3fd00000 and initrd source47c80000,
+  bounds-checks FDT RAM/memreserve/fixed reserved ranges and package format.
+  Size-only DT reservation requests are not fixed physical reservations;
+  Linux drivers making those allocations do not run in the shim.
+- Private actual payload research/a31-loader-local/xnu.payload: 16586896B,
+  SHA6e8046a15afe340996b1cde139881522dd6f2e569bf3810cd76701d476df7346,
+  from original compiled kernel78dad2f5...ffc629 (62ac3e2). Fresh A31 ADT
+  from V6-success capture, 3728B, SHA f74be620...b79c3c. Ten segments,
+  entry PA10148b488, args PA1024c8000, top1024cc000.
+- Local native/QEMU payload-check cross-compiles pass. 49 Python checks
+  pass. Static C payload/guard tests ran on A31 Linux EL0, first fixture,
+  then the ACTUAL kernel payload and live FDT, using heap-backed simulated
+  destinations; validation, all segment bytes/BSS and boot args PASS.
+  This is NOT native physical copying or XNU execution. Extended static
+  support tests including dynamic-reservation handling also passed in EL0.
+  CI ASan/UBSan, EL1/EL2 preparation pending. Phone TWRP/V6 unchanged; only
+  temporary RAM files used, no new BOOT writes during this implementation.
+- Packager now permits payload ramdisk replacement ONLY for explicit
+  prepare-only/no-jump manifest, validates it and verifies round-trip bytes.
+  Existing restore, parent AVB, recovery ABI, pstore and FDT gates remain.
 - FIRST VERIFIED NATIVE DIAGNOSTIC PASS on the actual A31, 2026-10-23.
   V6 source a678d2ce7cb4dd427afab315993e7c45bc042185. Recovered matching
   session from BOTH /proc/last_kmsg and /sys/fs/pstore/console-ramoops:

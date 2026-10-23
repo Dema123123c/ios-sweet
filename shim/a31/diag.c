@@ -1,4 +1,5 @@
 #include "support.h"
+#include "payload.h"
 
 #define READ(reg) ({ uint64_t v; __asm__ volatile("mrs %0, " #reg : "=r"(v)); v; })
 #define WRITE(reg, value) __asm__ volatile("msr " #reg ", %0" :: "r"((uint64_t)(value)) : "memory")
@@ -245,6 +246,60 @@ static int probe_timer(const struct dt_view *dt)
     field("VTIMER_IRQS=", timer_irqs); field("OTHER_IRQS=", other_irqs);
     return timer_irqs >= 3 && !other_irqs;
 }
+#if DIAG_PAYLOAD_CHECK
+static uint64_t fdt_integer(const struct dt_property *property)
+{
+    uint64_t value = 0;
+    for (uint32_t i = 0; i < property->size; i++) value = value << 8 | property->data[i];
+    return value;
+}
+static int payload_write(void *context, uint64_t address, const void *source, size_t size)
+{
+    (void)context;
+    volatile uint8_t *destination = (volatile uint8_t *)(uintptr_t)address;
+    const uint8_t *data = source;
+    size_t position = 0;
+    if (!(address & 7) && (!data || !((uintptr_t)data & 7))) {
+        for (; size - position >= 8; position += 8)
+            *(volatile uint64_t *)(destination + position) = data ? *(const uint64_t *)(data + position) : 0;
+    }
+    for (; position < size; position++) destination[position] = data ? data[position] : 0;
+    BARRIER();
+    for (position = 0; position < size; position++)
+        if (destination[position] != (data ? data[position] : 0)) return 0;
+    return 1;
+}
+static void probe_payload(const struct dt_view *dt)
+{
+    uint32_t node;
+    struct dt_property start, end;
+    if (!dt_root_child(dt, "chosen", &node) ||
+        !dt_property(dt, node, "linux,initrd-start", &start) ||
+        !dt_property(dt, node, "linux,initrd-end", &end) ||
+        (start.size != 4 && start.size != 8) || end.size != start.size)
+        fail("payload initrd properties");
+    uint64_t first = fdt_integer(&start), last = fdt_integer(&end);
+    if (last <= first || last - first > 24 * 1024 * 1024) fail("payload initrd bounds");
+#if DIAG_QEMU
+    uint64_t base = 0x50000000, size = 0x4000000;
+    if (first < 0x40000000 || last > 0x60000000) fail("QEMU payload source");
+#else
+    uint64_t base = 0x100000000ULL, size = 0x3fd00000;
+    if (first != 0x47c80000) fail("A31 payload source");
+#endif
+    if (!dt_ram_available(dt, base, size)) fail("payload RAM reserved or absent");
+    struct a31_payload_plan plan;
+    const char *error = a31_payload_validate((const void *)(uintptr_t)first, last - first,
+                                            first, base, size, &plan);
+    if (error) fail(error);
+    field("PAYLOAD_SOURCE=", first); field("PAYLOAD_BYTES=", last - first);
+    field("XNU_ENTRY_PA=", plan.entry); field("ADT_PA=", plan.adt_address);
+    field("BOOT_ARGS_PA=", plan.args_address); field("XNU_TOP=", plan.top);
+    error = a31_payload_prepare(&plan, payload_write, NULL);
+    if (error) fail(error);
+    text("PAYLOAD COPY/READBACK PASS\nXNU JUMP DISABLED\n");
+}
+#endif
 void diag_exception(uint64_t slot)
 {
     if ((READ(CurrentEL) >> 2) == 2) {
@@ -343,6 +398,10 @@ void diag_main(uintptr_t fdt_address, uint64_t entry_el)
     if (!probe_mmu(ram_base, ram_size)) fail("16K translation");
     text("MMU16K PASS\n");
     if (!probe_timer(&dt)) fail("GICv3/virtual timer");
-    text("VTIMER PASS\n[A31-DIAG] PASS\n");
+    text("VTIMER PASS\n");
+#if DIAG_PAYLOAD_CHECK
+    probe_payload(&dt);
+#endif
+    text("[A31-DIAG] PASS\n");
     finish(1);
 }

@@ -16,7 +16,7 @@ def u64(*n):
     return struct.pack('>%dQ' % len(n), *n)
 
 
-def fixture(bootargs=None):
+def fixture(bootargs=None, dynamic=False):
     names = bytearray()
     offsets = {}
     tree = bytearray()
@@ -35,7 +35,9 @@ def fixture(bootargs=None):
     node('', {'compatible': b'mediatek,MT6768\0', '#address-cells': u32(2), '#size-cells': u32(2)}, [
         ('memory', {'device_type': b'memory\0', 'reg': u64(0x40000000, 0x100000000)}),
         ('reserved-memory', {'#address-cells': u32(2), '#size-cells': u32(2)}, [
-            ('firmware', {'reg': u64(0x50000000, 0x100000)})]),
+            ('firmware', {'reg': u64(0x50000000, 0x100000)})] + ([
+            ('pool', {'compatible': b'shared-dma-pool\0', 'size': u64(0x100000),
+                      'alloc-ranges': u64(0xc0000000, 0x80000000)})] if dynamic else [])),
         ('cpus', {'#address-cells': u32(1), '#size-cells': u32(0)}, [
             ('cpu@0', {'device_type': b'cpu\0', 'compatible': b'arm,cortex-a55\0',
                        'reg': u32(0), 'clock-frequency': u32(1701000000)})]),

@@ -30,7 +30,9 @@ def inspect(data, expected_build):
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
         found.append({'status': status, 'build_id': expected_build, 'fields': fields,
-                      'failure': failure.group(1) if failure else None})
+                      'failure': failure.group(1) if failure else None,
+                      'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
+                      'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})
     return {'status': found[-1]['status'] if found else 'not_found', 'sessions': found}
 
 

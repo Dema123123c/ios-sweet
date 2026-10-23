@@ -170,6 +170,70 @@ int dt_root_child(const struct dt_view *dt, const char *wanted, uint32_t *node)
     return 1;
 }
 
+static uint64_t be64(const uint8_t *p) { return (uint64_t)be32(p) << 32 | be32(p + 4); }
+static int region_overlap(uint64_t a, uint64_t n, uint64_t b, uint64_t m)
+{
+    return n && m && a < b + m && b < a + n;
+}
+int dt_ram_available(const struct dt_view *dt, uint64_t base, uint64_t size)
+{
+    if (!size || base > UINT64_MAX - size) return 0;
+    uint32_t p = dt->structure, kind;
+    int depth = 0, reserved = 0, found = 0;
+    const char *name;
+    struct dt_property property;
+    if (!dt_property(dt, p, "#address-cells", &property) || property.size != 4 ||
+        be32(property.data) != 2 || !dt_property(dt, p, "#size-cells", &property) ||
+        property.size != 4 || be32(property.data) != 2) return 0;
+    while (p < dt->structure + dt->structure_size) {
+        uint32_t start = p;
+        if (!token(dt, &p, &kind, &name, &property)) return 0;
+        if (kind == 1) {
+            ++depth;
+            if (depth == 2) reserved = equal(name, "reserved-memory");
+            if (depth == 2 && reserved) {
+                if (!dt_property(dt, start, "#address-cells", &property) || property.size != 4 ||
+                    be32(property.data) != 2 || !dt_property(dt, start, "#size-cells", &property) ||
+                    property.size != 4 || be32(property.data) != 2) return 0;
+            }
+            if (reserved && depth > 3) return 0;
+            int memory = depth == 2 && dt_property(dt, start, "device_type", &property) &&
+                         dt_string(&property, "memory");
+            if (memory || (reserved && depth == 3)) {
+                if (!dt_property(dt, start, "reg", &property)) {
+                    /* Size-only nodes request future OS allocation; these drivers do not run here. */
+                    if (memory || !dt_property(dt, start, "size", &property) ||
+                        property.size != 8 || !be64(property.data)) return 0;
+                    if (dt_property(dt, start, "alloc-ranges", &property)) {
+                        if (!property.size || property.size % 16) return 0;
+                        for (uint32_t i = 0; i < property.size; i += 16)
+                            if (be64(property.data + i) > UINT64_MAX - be64(property.data + i + 8)) return 0;
+                    }
+                    continue;
+                }
+                if (!property.size || property.size % 16) return 0;
+                for (uint32_t i = 0; i < property.size; i += 16) {
+                    uint64_t address = be64(property.data + i), length = be64(property.data + i + 8);
+                    if (address > UINT64_MAX - length) return 0;
+                    if (memory && base >= address && size <= length && base - address <= length - size)
+                        found = 1;
+                    if (!memory && region_overlap(base, size, address, length)) return 0;
+                }
+            }
+        } else if (kind == 2) { if (depth == 2) reserved = 0; depth--; }
+        else if (kind == 9) break;
+    }
+    p = be32(dt->data + 16);
+    if (p < 40 || (p & 7)) return 0;
+    while (p <= dt->size && dt->size - p >= 16) {
+        uint64_t address = be64(dt->data + p), length = be64(dt->data + p + 8);
+        if (!address && !length) return found;
+        if (address > UINT64_MAX - length || region_overlap(base, size, address, length)) return 0;
+        p += 16;
+    }
+    return 0;
+}
+
 int samsung_recovery_bind(struct samsung_recovery *context, void *memory, size_t size)
 {
     if (!memory || ((uintptr_t)memory & 3) || size != 0x800) return 0;

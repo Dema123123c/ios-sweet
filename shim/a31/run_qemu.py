@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 
-def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False):
+def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False, payload=None):
     image, out = Path(image).resolve(), Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     reports = []
@@ -16,6 +16,8 @@ def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False):
                    '-display', 'none', '-monitor', 'none', '-serial', 'stdio', '-nic', 'none',
                    '-no-reboot', '-semihosting-config', 'enable=on,target=native',
                    '-kernel', str(image)]
+        if payload is not None:
+            command += ['-initrd', str(Path(payload).resolve())]
         try:
             result = subprocess.run(command, capture_output=True, text=True, timeout=20)
         except subprocess.TimeoutExpired as error:
@@ -38,6 +40,9 @@ def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False):
                          'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS']
             expected_return = 0
             forbidden = ['[A31-DIAG] FAIL ']
+            if payload is not None:
+                expected += ['PAYLOAD COPY/READBACK PASS', 'XNU JUMP DISABLED',
+                             'XNU_ENTRY_PA=0x0000000050004000']
         if (result.returncode != expected_return or any(item not in text for item in expected)
                 or any(item in text for item in forbidden)):
             raise RuntimeError(f'EL{entry} QEMU diagnostic failed, return code {result.returncode}')
@@ -52,5 +57,6 @@ if __name__ == '__main__':
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--qemu', default='qemu-system-aarch64')
     parser.add_argument('--expect-entry-fault', action='store_true')
+    parser.add_argument('--payload', type=Path)
     args = parser.parse_args()
-    run(args.image, args.out, args.qemu, args.expect_entry_fault)
+    run(args.image, args.out, args.qemu, args.expect_entry_fault, args.payload)

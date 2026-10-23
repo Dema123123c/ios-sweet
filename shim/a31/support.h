@@ -16,6 +16,7 @@ int dt_reg(const struct dt_view *dt, uint32_t node, unsigned index,
            uint64_t *base, uint64_t *size);
 int dt_string(const struct dt_property *property, const char *value);
 int dt_root_child(const struct dt_view *dt, const char *name, uint32_t *node);
+int dt_ram_available(const struct dt_view *dt, uint64_t base, uint64_t size);
 
 struct samsung_recovery {
     volatile uint32_t *upload, *power_reset, *reason;

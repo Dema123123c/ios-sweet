@@ -10,7 +10,7 @@ import subprocess
 from pathlib import Path
 
 
-def build(out, cc='clang', qemu=False, entry_fault=False):
+def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False):
     if entry_fault and not qemu:
         raise ValueError('entry fault injection is QEMU-only')
     source = Path(__file__).resolve().parent
@@ -41,9 +41,10 @@ def build(out, cc='clang', qemu=False, entry_fault=False):
              '-mgeneral-regs-only', '-mstrict-align', '-mno-outline-atomics',
              '-Wall', '-Wextra', '-Werror', f'-DDIAG_QEMU={int(qemu)}',
              f'-DDIAG_ENTRY_FAULT={int(entry_fault)}',
+             f'-DDIAG_PAYLOAD_CHECK={int(payload_check)}',
              f'-DDIAG_BUILD_ID="{build_id}"']
     objects = []
-    for name in ['start.S', 'support.c', 'diag.c']:
+    for name in ['start.S', 'support.c', 'payload.c', 'diag.c']:
         obj = out / (Path(name).stem + '.o')
         subprocess.run([compiler, *flags, '-c', str(source / name), '-o', str(obj)], check=True)
         objects.append(obj)
@@ -73,6 +74,9 @@ def build(out, cc='clang', qemu=False, entry_fault=False):
                 'native_boot_tested': False, 'build_id': build_id, 'text_offset': '0x80000',
                 'image_flags': image_flags, 'entry_fault_test': entry_fault,
                 'early_entry_log': True}
+    if payload_check:
+        metadata['payload_mode'] = 'prepare-only; no XNU jump'
+        metadata['kernel_jump_enabled'] = False
     if not qemu:
         metadata['recovery_return'] = {
             'method': 'Samsung SRAM recovery flags + PSCI SYSTEM_RESET via SMC',
@@ -95,5 +99,7 @@ if __name__ == '__main__':
     parser.add_argument('--qemu', action='store_true')
     parser.add_argument('--entry-fault-test', action='store_true',
                         help='QEMU only: inject an undefined instruction after the early log')
+    parser.add_argument('--payload-check', action='store_true',
+                        help='validate/copy the initrd XNU payload, verify readback, then return; no jump')
     args = parser.parse_args()
-    build(args.out, args.cc, args.qemu, args.entry_fault_test)
+    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check)

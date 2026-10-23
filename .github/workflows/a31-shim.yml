@@ -8,6 +8,7 @@ on:
       - '.github/workflows/a31-shim.yml'
       - 'tools/mka31diag.py'
       - 'tools/a31_diag_log.py'
+      - 'tools/a31_payload.py'
       - 'tools/test_a31*.py'
 concurrency:
   group: a31-shim-${{ github.ref }}
@@ -27,13 +28,20 @@ jobs:
       - name: Parser and log-ring tests with address and undefined-behavior sanitizers
         run: |
           mkdir -p research/a31-diag
-          PYTHONPATH=tools python3 -c "from pathlib import Path; from test_a31 import fixture; Path('research/a31-diag/fixture.dtb').write_bytes(fixture())"
+          PYTHONPATH=tools python3 -c "from pathlib import Path; from test_a31 import fixture; Path('research/a31-diag/fixture.dtb').write_bytes(fixture(dynamic=True))"
           clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/support.c shim/a31/host_test.c -o research/a31-diag/host-test
           research/a31-diag/host-test research/a31-diag/fixture.dtb
+      - name: Payload parser, copy and boot-argument tests with sanitizers
+        run: |
+          PYTHONPATH=tools python3 -c "from pathlib import Path; from a31_payload import fixture; Path('research/a31-diag/fixture.payload').write_bytes(fixture())"
+          clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/support.c shim/a31/payload.c shim/a31/payload_host_test.c -o research/a31-diag/payload-test
+          research/a31-diag/payload-test research/a31-diag/fixture.payload 0x50000000 0x4000000
       - name: A31 Python format and log checks
         run: python3 -m unittest discover -s tools -p 'test_a31*.py' -v
       - name: Build native diagnostic
-        run: python3 shim/a31/build.py --out research/a31-diag/native
+        run: |
+          python3 shim/a31/build.py --out research/a31-diag/native
+          python3 shim/a31/build.py --payload-check --out research/a31-diag/native-loader
       - name: Build QEMU diagnostic and test EL1 and EL2 entry
         run: |
           python3 shim/a31/build.py --qemu --out research/a31-diag/qemu
@@ -42,6 +50,10 @@ jobs:
         run: |
           python3 shim/a31/build.py --qemu --entry-fault-test --out research/a31-diag/qemu-fault
           python3 shim/a31/run_qemu.py --expect-entry-fault --image research/a31-diag/qemu-fault/Image --out research/a31-diag/test-fault-results
+      - name: Prepare and read back a payload through actual EL1 and EL2 entries
+        run: |
+          python3 shim/a31/build.py --qemu --payload-check --out research/a31-diag/qemu-loader
+          python3 shim/a31/run_qemu.py --image research/a31-diag/qemu-loader/Image --payload research/a31-diag/fixture.payload --out research/a31-diag/test-loader-results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -52,4 +64,7 @@ jobs:
             research/a31-diag/test-results/
             research/a31-diag/qemu-fault/
             research/a31-diag/test-fault-results/
+            research/a31-diag/native-loader/
+            research/a31-diag/qemu-loader/
+            research/a31-diag/test-loader-results/
           retention-days: 7

@@ -14,6 +14,7 @@ import tarfile
 from pathlib import Path
 
 from a31_fdt import parse, strings
+from a31_payload import inspect_payload
 
 STOCK_SHA256 = 'af9ef4265e3d15bb0cc3ff8c0b968eeb6da0253db305e37908aa649cfba176f1'
 TOOL_HASHES = {
@@ -58,6 +59,17 @@ def validate_return_recovery(metadata, recovery_image):
         raise ValueError('recovery does not match the independently checked SRAM reset ABI')
     return {'sha256': expected, 'reset_abi_verified_in_recovery_binary': True,
             'native_return_hardware_tested': False}
+
+
+def validate_payload_input(metadata, payload):
+    mode = metadata.get('payload_mode')
+    if not mode and payload is None:
+        return None
+    if mode != 'prepare-only; no XNU jump' or metadata.get('kernel_jump_enabled') is not False:
+        raise ValueError('payload only allowed with the explicit prepare-only native loader')
+    if payload is None:
+        raise ValueError('payload checker requires --payload')
+    return inspect_payload(payload.read_bytes())
 
 
 def validate_unlocked_stock(properties):
@@ -204,7 +216,7 @@ def package_tar(path, data):
 
 def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
           unlocked_stock_properties=None, live_recovery_fdt=None, pstore_profile=None,
-          recovery_image=None):
+          recovery_image=None, payload=None):
     live_report = None
     if unlocked_stock_properties is not None:
         if live_recovery_fdt is None:
@@ -223,6 +235,10 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
             raise ValueError('stock DTB does not identify MT6768')
     metadata = json.loads((native_dir / 'build.json').read_text())
     checked_recovery = validate_return_recovery(metadata, recovery_image)
+    checked_payload = validate_payload_input(metadata, payload)
+    payload_data = payload.read_bytes() if checked_payload is not None else None
+    if payload_data is not None and sha(payload_data) != checked_payload['sha256']:
+        raise ValueError('payload changed after validation')
     checked_pstore = None
     if metadata.get('pstore_console'):
         if pstore_profile is None:
@@ -243,7 +259,8 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
     staging = output / 'components'
     staging.mkdir()
     for name in ['ramdisk', 'dtb']:
-        (staging / name).write_bytes(header['parts'][name])
+        (staging / name).write_bytes(payload_data if name == 'ramdisk' and checked_payload
+                                    else header['parts'][name])
     shutil.copyfile(native_dir / 'Image.gz', staging / 'Image.gz')
     osv = header['os_version']
     os_version = f'{(osv >> 25) & 127}.{(osv >> 18) & 127}.{(osv >> 11) & 127}'
@@ -284,8 +301,9 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
     for key, value in header.items():
         if key != 'parts' and after[key] != value:
             raise ValueError(f'boot header changed: {key}')
-    if gzip.decompress(after['parts']['kernel']) != raw or any(
-            after['parts'][key] != header['parts'][key] for key in ['ramdisk', 'dtb']):
+    if (gzip.decompress(after['parts']['kernel']) != raw or
+            after['parts']['dtb'] != header['parts']['dtb'] or
+            after['parts']['ramdisk'] != (staging / 'ramdisk').read_bytes()):
         raise ValueError('boot component round-trip failed')
     if len(diagnostic) != len(stock) or diagnostic[-64:-60] != b'AVBf':
         raise ValueError('partition size or AVB footer mismatch')
@@ -295,19 +313,23 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
     package_tar(output / 'a31-diagnostic-boot.tar', diagnostic)
     package_tar(output / 'a31-original-boot-restore.tar', stock)
     report = {'device': 'SM-A315F', 'firmware_template': 'A315FXXU5DXJ1',
-              'kind': 'diagnostic only; no XNU handoff', 'native_boot_tested': False,
+              'kind': 'XNU payload preparation/readback only; no kernel jump' if checked_payload
+                      else 'diagnostic only; no XNU handoff', 'native_boot_tested': False,
               'writes_performed_on_phone': False, 'target_partition': 'BOOT only',
               'stock_sha256': sha(stock), 'diagnostic_sha256': sha(diagnostic),
               'image_sha256': sha(raw), 'avb_algorithm': 'NONE (unsigned)',
               'requires_unlocked_bootloader': True,
               'parent_vbmeta_preflight': parent_report,
-              'header_and_original_ramdisk_dtb_preserved': True,
+              'header_and_original_ramdisk_dtb_preserved': checked_payload is None,
+              'header_and_original_dtb_preserved': True,
               'manual_return_to_recovery_required': True,
               'source_image_manifest': metadata}
     if checked_pstore is not None:
         report['recovery_pstore_profile'] = checked_pstore
     if checked_recovery is not None:
         report['automatic_recovery_return'] = checked_recovery
+    if checked_payload is not None:
+        report['prepared_payload'] = checked_payload
     (output / 'manifest.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, indent=2))
     return report
@@ -334,10 +356,13 @@ if __name__ == '__main__':
                         help='fresh recovery ramoops sysfs parameter JSON; mandatory for pstore diagnostics')
     parser.add_argument('--recovery-image', type=Path,
                         help='current matching TWRP partition dump; required by automatic-return diagnostics')
+    parser.add_argument('--payload', type=Path,
+                        help='XNU payload replaces template ramdisk only for the prepare-only checker')
     args = parser.parse_args()
     build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
           args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve(),
           args.unlocked_stock_properties.resolve() if args.unlocked_stock_properties else None,
           args.live_recovery_fdt.resolve() if args.live_recovery_fdt else None,
           args.pstore_profile.resolve() if args.pstore_profile else None,
-          args.recovery_image.resolve() if args.recovery_image else None)
+          args.recovery_image.resolve() if args.recovery_image else None,
+          args.payload.resolve() if args.payload else None)
