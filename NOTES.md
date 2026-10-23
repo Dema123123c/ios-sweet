@@ -8,6 +8,19 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V14 ACTUAL NATIVE POST-MMU CHECKPOINT PASS. Pstore expectedc94a46a
+  ENTRY/STACKS/TABLES/MMU NEXT, BRK ESRf2000a31 at ELR10148e500,
+  SCTLR3454593d (M/C/I enabled), sourceSPfffffe00080b4000, slot0, software
+  recovery request, auto TWRP. Evidence research/a31-v14-post-mmu-logs/
+  checkpoint-result.json. Proves original MSR SCTLR/ISB, cache/MMU enable
+  and physical instruction fetch/vectors on A31. NOT high-KVA C entry.
+  Last_kmsg has shim records only; pstore supplies actual XNU evidence.
+  V14 remains installed. Original V11 hang must be LATER than this point.
+- NEXT high-KVA arm_init entry trap: exact original V11 plus BRK replacing
+  first SUBsp,#d0 opcode d10343ff at VAfffffe0007ad4fe8/PA101ad4fe8.
+  Tests CPACR/TPIDR/MIDR/RET and high-KVA code fetch before C prologue/stack
+  stores. Require exact high-VA ELR, BRK ESR and M=1. Helper guards source
+  hash/opcode, QEMU control pending. Private research/a31-c-entry-checkpoint.
 - V14 POST-MMU CONTROL WRITTEN/READ BACK/REBOOTED 2026-10-23 13:22:28 UTC,
   BOOT p35 only SHAacba87d112e32f6d110d87304ead0823ffeea810eedcc211f55f5a21f4a82d72.
   Full readback matches, recovery/both vbmetas unchanged, unlocked/orange.

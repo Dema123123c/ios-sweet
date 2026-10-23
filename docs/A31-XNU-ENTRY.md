@@ -165,3 +165,10 @@ TWRP automatically. This also verifies the physical stack-independent
 exception handler and software recovery path on hardware. It does not
 prove MMU enable, first C or iOS boot. Only pstore contains XNU markers;
 last_kmsg contains the matching shim/copy session.
+
+V14 on the actual A31 also passed the next checkpoint at PA10148e500,
+immediately after original MSR SCTLR_EL1 and ISB. The recorded
+SCTLR3454593d has MMU, data cache and instruction cache enabled; exact
+ESRf2000a31/ELR10148e500 and automatic software return confirm the
+controlled trap. This proves that transition and physical instruction
+fetch, but not the high-KVA arm_init entry or C stack operations.
