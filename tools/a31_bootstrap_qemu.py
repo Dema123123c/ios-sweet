@@ -57,6 +57,8 @@ def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, reba
     if platform:
         import mkadt
         root = mkadt.build(qemu=True)
+        root.props = [(k, f, b'samsung,a31\0mediatek,MT6768\0' if k == 'compatible' else v)
+                      for k, f, v in root.props]
         root.children = [n for n in root.children if n.prop('name') != b'sweet-fbcon\0']
         chosen = next(n for n in root.children if n.prop('name') == b'chosen\0')
         chosen.props = [(k, f, struct.pack('<Q', 0x100000000) if k == 'dram-base' else
