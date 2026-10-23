@@ -8,6 +8,28 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V11 SOURCE/EMULATOR VALIDATION COMPLETE; FULL KERNEL QUEUED.
+  Source6326258ab44dcf5f1da58086fbd55bdbab7c48e1. Shim CI39952374500
+  SUCCESS: 59 Python + C sanitizers + all prior entry controls, plus20
+  actual shared boot-assembly runs (EL1/EL2, SP0/SP1, MMU off/on, invalid
+  SRAM/ring headers). Exact sources mirrored into patch0084 by test.
+  Evidence research/a31-boot-fault-ci-6326258/boot-fault-tests/results.json
+  and raw per-case logs. No native-handler execution claimed.
+  Full macOS kernel CI39952374717 is STILL QUEUED without runner. Earlier
+  78c4340 kernel CI39951828892 was cancelled during Build by superseding
+  source; it has NO usable verified kernel, do not use its artifacts.
+  GitHub announced macOS14 deprecation/long queues (runner-images#13518),
+  but the exact cause of this particular queue is unknown. Do not infer
+  build success or change to an incompatible Xcode/iig ABI to bypass it.
+  NEXT: inspect CI39952374717 and wait for successful full kernel+marker
+  validation; download xnu-kernel into
+  research/a31-boot-fault-kernel-ci-6326258/kernel. Private staging script
+  research/a31-boot-fault-attempt/prepare.py checks source, exact payload,
+  all20 tests and fresh device gates, then produces outputs/a31-boot-fault-v11.
+  It has NOT been run; no V11 BOOT package yet and NO new phone writes.
+  Current phone TWRP/V10, BOOT65ba8cb2...9409bf. No new native test started.
+  Continue build/package/testing under existing experimental BOOT scope,
+  without writing Data/TEE1/vbmeta/bootloaders. No scheduled automation.
 - EXTENDED boot-fault handler to record SPSR and original source SP:
   EL1t faults switch to SP_EL1 on exception, so reading current SP alone
   misidentifies the failed stack. SPSR.SP selects SP_EL0 vs current SP_EL1.

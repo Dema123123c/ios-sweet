@@ -133,3 +133,9 @@ final SMC after the guarded writes; it does not test Samsung firmware.
 The native include uses fixed physical addresses and the real SMC.
 An exception before the physical vector is installed or with an unfetchable
 identity-mapped code page still has no guaranteed recovery path.
+
+Source6326258 passed twenty shared-assembly QEMU runs: both incoming ELs,
+both SP selectors with zero stacks, MMU off/on, invalid SRAM and ring
+headers. Fatal logs include original source SP selected from SPSR.SP and
+SPSR itself. Full kernel run39952374717 remains queued; no native boot
+of this new handler or V11 BOOT package is claimed at this checkpoint.
