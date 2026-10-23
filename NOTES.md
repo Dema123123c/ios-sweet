@@ -8,6 +8,14 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V14 POST-MMU CONTROL WRITTEN/READ BACK/REBOOTED 2026-10-23 13:22:28 UTC,
+  BOOT p35 only SHAacba87d112e32f6d110d87304ead0823ffeea810eedcc211f55f5a21f4a82d72.
+  Full readback matches, recovery/both vbmetas unchanged, unlocked/orange.
+  Operation research/a31-post-mmu-attempt/operation.json. User asked short
+  Power warning(s), no manual keys first40s. Await result and collect
+  expectedc94a46a40facfc3896513dec0a0a0629cf2bdb7e into
+  research/a31-v14-post-mmu-logs. Need exact BRK ESRf2000a31/ELR10148e500,
+  SCTLR.M=1 and stage markers. V14 remains installed. No watchdog/C entry.
 - V14 POST-MMU CONTROL READY, not flashed at checkpoint. QEMU
   CI39960414125 SUCCESS sourcec94a46a, exact BRK ELR10148e500/M=1.
   Private kernel0a619941bc7f56a0875ba4893ffcdbf4dd18b2e32109ede0debba169755dcf47
