@@ -1,5 +1,6 @@
 #include "support.h"
 #include "payload.h"
+#include "watchdog.h"
 
 #define READ(reg) ({ uint64_t v; __asm__ volatile("mrs %0, " #reg : "=r"(v)); v; })
 #define WRITE(reg, value) __asm__ volatile("msr " #reg ", %0" :: "r"((uint64_t)(value)) : "memory")
@@ -103,6 +104,31 @@ static void stop_platform_watchdog(const struct dt_view *dt)
     if (after & 1) fail("watchdog disable did not stick");
     text("WDT OFF\n");
 }
+
+#if DIAG_WATCHDOG_CONTROL
+static uint32_t wdt_read(void *context, unsigned offset)
+{
+    return read32((uintptr_t)context + offset);
+}
+static void wdt_write(void *context, unsigned offset, uint32_t value)
+{
+    write32((uintptr_t)context + offset, value);
+    BARRIER();
+}
+static __attribute__((noreturn)) void watchdog_control(void)
+{
+    if (!recovery_ready) fail("watchdog recovery not ready");
+    samsung_recovery_request(&recovery_context);
+    BARRIER();
+    text("WATCHDOG CONTROL WAIT 4 SECONDS; NO XNU JUMP\n");
+    if (!a31_watchdog_arm((void *)0x10007000, wdt_read, wdt_write, 4))
+        fail("watchdog arm/readback");
+    uint64_t start = now();
+    while (now() - start < frequency * 8) __asm__ volatile("yield");
+    wdt_write((void *)0x10007000, 0, (wdt_read((void *)0x10007000, 0) & ~1U) | 0x22000000U);
+    fail("watchdog did not reset within 8 seconds");
+}
+#endif
 
 static void prepare_recovery_return(const struct dt_view *dt)
 {
@@ -445,6 +471,9 @@ void diag_main(uintptr_t fdt_address, uint64_t entry_el)
     text("MMU16K PASS\n");
     if (!probe_timer(&dt)) fail("GICv3/virtual timer");
     text("VTIMER PASS\n");
+#if DIAG_WATCHDOG_CONTROL
+    watchdog_control();
+#endif
 #if DIAG_PAYLOAD_CHECK
     probe_payload(&dt);
 #endif

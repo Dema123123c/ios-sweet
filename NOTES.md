@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- BOUNDED WATCHDOG CONTROL IMPLEMENTED, NOT FLASHED. Native-only build
+  --watchdog-control rejects all payload/entry/QEMU modes. Prearms existing
+  guarded recovery SRAM words, logs WAIT, MODE5c->15 single-stage reset,
+  LENGTH4s/readback and RESTART1971. Eight-second fallback disables WDT
+  and requests PSCI recovery. No XNU jump; no DDR/PMIC/non-reset changes.
+  Verified timer/mode ABI against installed RecoveryImage binary using
+  captured symbols: set_timeout0xbfb5e0, mode0xbfb640, restart0xbfb9e0.
+  Local native compile and existing59 Python PASS; added host policy
+  write-order/all-mode/invalid-timeout/readback tests and payload-mode
+  rejection tests. CI pending. Hardware reset/log retention NOT verified.
+  Phone remains TWRP/V11, no writes since V11. Next CI then package/test
+  this separate return control before adding any watchdog XNU handoff.
 - Bootstrap CI39957135181 SUCCESS at source19c7c9b with strict actual
   first-C/MMU/stage/EL/frequency assertions. Final ADB check: recovery.
   Working tree clean after saving checkpoint; no additional native test.

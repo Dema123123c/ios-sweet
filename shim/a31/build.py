@@ -11,7 +11,9 @@ import subprocess
 from pathlib import Path
 
 
-def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, entry_check_sha=None, entry_trap=False, trap_offset=0, trap_instruction=0):
+def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, entry_check_sha=None, entry_trap=False, trap_offset=0, trap_instruction=0, watchdog_control=False):
+    if watchdog_control and (qemu or entry_fault or payload_check or entry_check_sha or entry_trap or trap_offset):
+        raise ValueError('watchdog control is native-only and must never execute an XNU payload')
     if trap_offset:
         if not entry_trap or trap_offset != 0x1c78 or trap_instruction not in (0xf0ffffe0, 0xd503201f):
             raise ValueError('only the audited pre-VBAR checkpoint is supported')
@@ -56,6 +58,7 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, e
              f'-DDIAG_PAYLOAD_CHECK={int(payload_check)}',
              f'-DDIAG_XNU_ENTRY={int(entry_check_sha is not None)}',
              f'-DDIAG_ENTRY_TRAP={int(entry_trap)}',
+             f'-DDIAG_WATCHDOG_CONTROL={int(watchdog_control)}',
              f'-DDIAG_TRAP_OFFSET={trap_offset}', f'-DDIAG_TRAP_INSTRUCTION={trap_instruction}U',
              f'-DDIAG_ENTRY_PAYLOAD_SHA="{entry_check_sha or "disabled"}"',
              f'-DDIAG_BUILD_ID="{build_id}"']
@@ -116,6 +119,10 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, e
                                      'recovery_layout_profile_required': True}
         metadata['watchdog'] = {'base': '0x10007000', 'action': 'keyed clear of EN bit; readback required',
                                 'hardware_tested': False}
+    if watchdog_control:
+        metadata['kind'] = 'A31 watchdog return/log-retention control; no XNU jump'
+        metadata['watchdog_control'] = True
+        metadata['watchdog'].update(action='4-second single-stage reset with prearmed recovery', seconds=4)
     (out / 'build.json').write_text(json.dumps(metadata, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(metadata, indent=2))
     return image
@@ -134,5 +141,6 @@ if __name__ == '__main__':
     parser.add_argument('--entry-trap', action='store_true', help='replace the copied entry instruction in RAM with BRK; never execute XNU')
     parser.add_argument('--trap-offset', type=lambda s: int(s, 0), default=0)
     parser.add_argument('--trap-instruction', type=lambda s: int(s, 0), default=0)
+    parser.add_argument('--watchdog-control', action='store_true', help='native-only bounded reset/log-retention control; no payload')
     args = parser.parse_args()
-    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check, args.entry_check_sha, args.entry_trap, args.trap_offset, args.trap_instruction)
+    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check, args.entry_check_sha, args.entry_trap, args.trap_offset, args.trap_instruction, args.watchdog_control)

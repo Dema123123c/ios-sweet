@@ -40,6 +40,11 @@ jobs:
           research/a31-diag/xnu-io-test
       - name: A31 Python format and log checks
         run: python3 -m unittest discover -s tools -p 'test_a31*.py' -v
+      - name: Watchdog policy and native-only reset control
+        run: |
+          clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/watchdog_test.c -o research/a31-diag/watchdog-test
+          research/a31-diag/watchdog-test
+          python3 shim/a31/build.py --watchdog-control --out research/a31-diag/native-watchdog-control
       - name: Execute mirrored XNU boot exception assembly without a stack
         run: python3 shim/a31/test_xnu_boot.py --out research/a31-diag/boot-fault-tests
       - name: Build native diagnostic
@@ -85,6 +90,7 @@ jobs:
           name: a31-shim-diagnostics
           path: |
             research/a31-diag/native/
+            research/a31-diag/native-watchdog-control/
             research/a31-diag/qemu/
             research/a31-diag/test-results/
             research/a31-diag/qemu-fault/

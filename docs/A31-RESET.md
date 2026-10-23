@@ -76,3 +76,30 @@ hardware. Original BOOT and TWRP backups remain the fallback.
 Runtime kallsyms collection temporarily changed kptr_restrict from 2 to 0
 and restored it to 2 immediately, including the error path. Private raw
 images, symbols and control records stay outside Git.
+
+## Bounded watchdog return control
+
+A separate native-only control is available as --watchdog-control. It
+rejects QEMU and every payload/entry mode. After normal EL1/MMU/timer
+checks, it prearms the same validated three Samsung SRAM recovery words,
+logs WATCHDOG CONTROL WAIT and arms a four-second single-stage watchdog.
+If eight seconds pass, it disables the watchdog and uses the existing
+PSCI recovery fallback. The control never branches into XNU.
+
+The actual installed recovery Image was independently disassembled using
+its captured live symbol addresses and Image virtual base. At offset
+0xbfb5e0, mtk_wdt_set_time_out_value shifts seconds by6, clamps to0x7ff,
+shifts by5, inserts key8, writes LENGTH at+4 and issues DSB. Mode config
+at0xbfb640 confirms keyed MODE writes, enable bit0, external reset bit2,
+IRQ bit3 and dual mode bit6. The restart routine begins at0xbfb9e0.
+The header and reference v2 source agree with the binary.
+
+The guarded control accepts only observed stopped MODE0x5c, writes
+LENGTH=(4<<11)|8, checks timeout bits, kicks RESTART+8 with0x1971, writes
+MODE0x22000015, verifies0x15, and kicks again. IRQ/dual are cleared so the
+first expiry requests reset; EXTEN/EXTRA_CNT remain enabled. It does not
+change DDR reserve, PMIC, non-reset registers, storage or reset routing.
+Host tests enforce timeout bounds, exact register order/write allowlist,
+all other mode rejection and failed readback paths. Timed reset and log
+retention are NOT established by compilation, mocks or disassembly.
+They require the separate native control before XNU handoff use.
