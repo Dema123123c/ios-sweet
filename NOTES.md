@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V10 WRITTEN/READ BACK/REBOOTED 2026-10-23 12:02:30 UTC, BOOT p35
+  only. SHA65ba8cb2...9409bf, full raw readback matches; recovery/both
+  vbmetas unchanged and fresh unlocked/orange/RAM/pstore gates PASS.
+  Operation research/a31-early-brk-attempt/operation.json. User asked
+  short Power at warning(s), no manual recovery keys. Await automatic
+  TWRP return and immediately collect expected d6add85 session into
+  research/a31-v10-early-brk-logs. Native V10 result PENDING. Need physical
+  XNU marker plus exact trap ELR10148e100/ESRf2000a31 for assembler PASS;
+  this still cannot prove C or MMU startup. V10 remains installed.
 - V10 EARLY-ASSEMBLER CHECKPOINT READY, not written at checkpoint.
   Sourced6add8504fc579db83c3655e995c1a435c7be4fd, CI39950087301 SUCCESS,
   58 Python, C sanitizers, all EL1/EL2 previous modes plus synthetic early
