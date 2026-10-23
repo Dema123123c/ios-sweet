@@ -1,0 +1,82 @@
+A31: guard unknown bus clock ratios without inventing a bus frequency.
+Advance to PE_init_platform(FALSE), verify the clock policy, then reset.
+
+--- a/pexpert/arm/pe_identify_machine.c
++++ b/pexpert/arm/pe_identify_machine.c
+@@ -165,6 +165,18 @@
+ 	gPEClockFrequencyInfo.bus_clock_rate_num = gPEClockFrequencyInfo.bus_clock_rate_hz;
+ 	gPEClockFrequencyInfo.bus_clock_rate_den = 1;
+ 
++#if defined(A31)
++	/* Unknown bus frequency stays zero; ratios always have a valid denominator.
++	 * Keep exact rational rates and avoid the legacy 2 * CPU overflow. */
++	gPEClockFrequencyInfo.bus_to_cpu_rate_num = gPEClockFrequencyInfo.bus_clock_rate_hz ?
++	    gPEClockFrequencyInfo.cpu_clock_rate_hz : 0;
++	gPEClockFrequencyInfo.bus_to_cpu_rate_den = gPEClockFrequencyInfo.bus_clock_rate_hz ?
++	    gPEClockFrequencyInfo.bus_clock_rate_hz : 1;
++	gPEClockFrequencyInfo.bus_to_dec_rate_num = gPEClockFrequencyInfo.bus_clock_rate_hz ?
++	    gPEClockFrequencyInfo.dec_clock_rate_hz : 0;
++	gPEClockFrequencyInfo.bus_to_dec_rate_den = gPEClockFrequencyInfo.bus_clock_rate_hz ?
++	    gPEClockFrequencyInfo.bus_clock_rate_hz : 1;
++#else
+ 	gPEClockFrequencyInfo.bus_to_cpu_rate_num =
+ 	    (2 * gPEClockFrequencyInfo.cpu_clock_rate_hz) / gPEClockFrequencyInfo.bus_clock_rate_hz;
+ 	gPEClockFrequencyInfo.bus_to_cpu_rate_den = 2;
+@@ -172,6 +184,7 @@
+ 	gPEClockFrequencyInfo.bus_to_dec_rate_num = 1;
+ 	gPEClockFrequencyInfo.bus_to_dec_rate_den =
+ 	    gPEClockFrequencyInfo.bus_clock_rate_hz / gPEClockFrequencyInfo.dec_clock_rate_hz;
++#endif /* A31 */
+ }
+ 
+ vm_offset_t
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -388,6 +388,17 @@
+ #endif
+ 
+ 	PE_init_platform(FALSE, args); /* Get platform expert set up */
++#if defined(A31)
++	if (gPEClockFrequencyInfo.timebase_frequency_hz != 13000000 ||
++	    gPEClockFrequencyInfo.dec_clock_rate_hz != 13000000 ||
++	    gPEClockFrequencyInfo.cpu_clock_rate_hz == 0 ||
++	    gPEClockFrequencyInfo.bus_clock_rate_hz != 0 ||
++	    gPEClockFrequencyInfo.bus_to_cpu_rate_num != 0 ||
++	    gPEClockFrequencyInfo.bus_to_cpu_rate_den != 1 ||
++	    gPEClockFrequencyInfo.bus_to_dec_rate_num != 0 ||
++	    gPEClockFrequencyInfo.bus_to_dec_rate_den != 1)
++		sweet_early_mark(0, "platform clock policy mismatch");
++#endif
+ 	sweet_early_mark(2, "PE_init_platform done");
+ 
+ #if __arm64__
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -146,7 +146,7 @@
+ #include <arm64/a31_entry_io.h>
+ #include <kern/misc_protos.h>
+ 
+-/* Stop after boot-argument copy and initial CPU data, before platform startup. */
++/* Stop after PE_init_platform(FALSE), before CPU topology/VM/driver startup. */
+ static unsigned int a31_panicking;
+ static unsigned int a31_entry_seen;
+ 
+@@ -222,11 +222,18 @@
+     }
+     if (stage == 22 && a31_entry_seen == 2 && current_el == 4 &&
+         (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 3;
+         a31_string("[A31-XNU] CPU-DATA-CHECK PASS\n");
++        return;
++    }
++    if (stage == 2 && a31_entry_seen == 3 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_string("[A31-XNU] PLATFORM-CHECK PASS\n");
+     } else {
+         a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
+         a31_string("[A31-XNU] REBASE-CHECK FAIL\n");
+         a31_string("[A31-XNU] CPU-DATA-CHECK FAIL\n");
++        a31_string("[A31-XNU] PLATFORM-CHECK FAIL\n");
+     }
+     a31_return();
+ }

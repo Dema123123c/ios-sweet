@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- NEXT V20 EARLY PLATFORM source prepared: patch0088 handles unknown A31 bus
+  rate as 0/1 ratios, avoiding zero division and legacy doubled-CPU overflow,
+  without inventing bus frequency. Stage22 returns; original
+  PE_init_platform(FALSE) runs (audited DT/memory/bootarg-only path). Clock
+  policy checked: 13MHz timebase/decrementer, nonzero CPU rate, unknown bus
+  and 0/1 ratios. Existing stage2 then PLATFORM-CHECK PASS/reset; no topology,
+  CPU bootstrap, VM or driver init. Loader source unchanged this phase.
+  67 Python tests (one local native-host-C compile skipped; CI clang runs
+  zero/high-rate policy with UBSan). New original C files cross-compile
+  locally. Full build/QEMU/native pending; phone remains V19 in TWRP.
+  User asks to continue automatically and reduce tiny BOOT test steps.
 - V19 NATIVE BOOT-ARGS/CPU-DATA PASS. Matching57397c0 pstore records ordered
   C stage1/ENTRY-CHECK PASS, stage21/REBASE-CHECK PASS, stage22 boot args
   copied/CPU data initialized/CPU-DATA-CHECK PASS and RECOVERY REQUEST.

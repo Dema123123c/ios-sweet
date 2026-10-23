@@ -22,6 +22,15 @@ class A31LogTests(unittest.TestCase):
                b'[A31-XNU] CPU-DATA-CHECK PASS\n')
         good = ENTRY_PASS.replace(b'[A31-XNU] ENTRY-CHECK PASS\n', rebase + cpu)
         self.assertEqual(inspect(BEGIN + good, BUILD)['status'], 'xnu_cpu_data_pass')
+        platform = (b'[A31-XNU] C STAGE 2: PE_init_platform done\n'
+                    b'[A31-XNU] PLATFORM-CHECK PASS\n')
+        platform_good = good.replace(b'[A31-XNU] RECOVERY REQUEST\n',
+                                     platform + b'[A31-XNU] RECOVERY REQUEST\n')
+        self.assertEqual(inspect(BEGIN + platform_good, BUILD)['status'], 'xnu_platform_pass')
+        for bad in [good, platform_good.replace(cpu, b''),
+                    platform + good, platform_good + b'[A31-XNU] PLATFORM-CHECK FAIL\n',
+                    platform_good + b'[A31-XNU] BOOT EXCEPTION\n']:
+            self.assertFalse(inspect(BEGIN + bad, BUILD)['sessions'][0]['xnu_platform_pass'])
         bads = [good.replace(rebase, b''), good.replace(cpu, b''),
                 good.replace(rebase + cpu, cpu + rebase),
                 good.replace(b'CPU-DATA-CHECK PASS', b'CPU-DATA-CHECK FAIL'),

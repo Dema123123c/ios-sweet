@@ -29,7 +29,7 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
-        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
         entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
             '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
@@ -63,8 +63,16 @@ def inspect(data, expected_build):
         cpu_positions = [session.find(line + '\n') for line in cpu_markers]
         cpu_data_pass = (rebase_pass and all(p >= 0 for p in cpu_positions) and
                          cpu_positions == sorted(cpu_positions))
+        platform_markers = ['[A31-XNU] CPU-DATA-CHECK PASS',
+                            '[A31-XNU] C STAGE 2: PE_init_platform done',
+                            '[A31-XNU] PLATFORM-CHECK PASS', '[A31-XNU] RECOVERY REQUEST']
+        platform_positions = [session.find(line + '\n') for line in platform_markers]
+        platform_pass = (cpu_data_pass and all(p >= 0 for p in platform_positions) and
+                         platform_positions == sorted(platform_positions))
         if entry_failure:
             status = 'fail'
+        elif platform_pass:
+            status = 'xnu_platform_pass'
         elif cpu_data_pass:
             status = 'xnu_cpu_data_pass'
         elif rebase_pass:
@@ -81,6 +89,7 @@ def inspect(data, expected_build):
                       'xnu_entry_pass': entry_pass and not failure and not entry_failure,
                       'xnu_rebase_pass': rebase_pass,
                       'xnu_cpu_data_pass': cpu_data_pass,
+                      'xnu_platform_pass': platform_pass,
                       'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
                       'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})
