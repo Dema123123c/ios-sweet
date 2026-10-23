@@ -8,6 +8,11 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V11 MANUAL TWRP RETURN confirmed by user, but ADB devices empty and
+  wait-for-recovery timed out; NO V11 log capture exists yet. Asked USB
+  replug without leaving TWRP. Do not reflash/reboot to fix missing USB.
+  User concerned repeated versions are for TWRP: clarified V9-V11 are XNU
+  BOOT diagnostics, RECOVERY/TWRP is unchanged. Next collect logs first.
 - V11 USER OBSERVED SAMSUNG SPLASH after40s, no automatic TWRP return.
   ADB absent after55s. Requested manual button return to TWRP, then no
   further reboot, to collect logs. Manual long-key reset previously lost
