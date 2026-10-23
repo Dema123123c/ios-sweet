@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 import struct
 import subprocess
 import time
@@ -91,14 +92,20 @@ _start:
     report = {'environment': 'QEMU virt, synthetic ADT; NOT Galaxy A31 hardware',
               'kernel_sha256': hashlib.sha256(kernel.read_bytes()).hexdigest(),
               'payload': checked, 'qemu_returncode': process.returncode,
+              'wrapper_branches_to_actual_kernel': True,
               'markers': {marker: marker in text for marker in [
                   'ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                   'BOOT EXCEPTION', 'ENTRY-CHECK PASS', 'RECOVERY REQUEST']}}
     (out / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
     print(text)
     print(json.dumps(report, indent=2))
-    if 'ENTRY MMU-OFF' not in text:
-        raise RuntimeError('real kernel physical entry was not observed')
+    required = ['ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
+                'C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
+                'XNU_CURRENT_EL=0x0000000000000001', 'XNU_CNTFRQ=0x0000000000c65d40']
+    sctlr = re.search(r'XNU_SCTLR_EL1=0x([0-9a-f]+)', text)
+    if (any(marker not in text for marker in required) or 'BOOT EXCEPTION' in text or
+            not sctlr or not int(sctlr.group(1), 16) & 1):
+        raise RuntimeError('actual linked kernel did not pass the emulated first-C checkpoint')
 
 
 if __name__ == '__main__':

@@ -8,6 +8,22 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- ACTUAL V11 LINKED KERNEL FIRST C/MMU PASS IN QEMU ONLY. Bootstrap CI
+  39956681635 SUCCESS, source1427652, kernel3486ac51...8c0c50 unchanged.
+  Raw pstore/monitor/report: research/a31-bootstrap-ci-39956681635.
+  Physical ENTRY, STACKS NEXT, TABLES READY, MMU ENABLE NEXT, C STAGE1,
+  EL1, SCTLR3454593d (M=1), CNTFRQ13MHz, ENTRY-CHECK PASS all observed.
+  QEMU virt/synthetic ADT at same >4GiB kernel/args addresses, not native
+  A31 driver/SoC validation. RECOVERY FAILED is expected there: Samsung
+  SRAM header/firmware absent. Initial CI39956418387 failed BEFORE QEMU
+  execution (unsupported reboot=pause option), fixed to no-reboot.
+  Added explicit full-stage/C/SCTLR assertions (needs CI rerun).
+  Native V11 still unlocated splash; captured logs empty after manual reset.
+  No phone writes/reboots this turn; TWRP remains. Next investigate bounded
+  watchdog + prearmed recovery flags to retain native logs on a hang,
+  verify against installed recovery binary before enabling live hardware.
+  Existing watchdog refs research/a31-warm-reset-reference and a31-wdt-reference;
+  only disabling WDT has native evidence, timed reset/log retention unproven.
 - V11 LOGS COLLECTED after USB replug: research/a31-v11-boot-fault-logs.
   last_kmsg/sec_log/pstore contain NO matching cad95e1 session or XNU
   markers. Manual-reset log loss known; this does NOT identify failure.

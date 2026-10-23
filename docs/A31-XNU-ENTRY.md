@@ -139,3 +139,18 @@ both SP selectors with zero stacks, MMU off/on, invalid SRAM and ring
 headers. Fatal logs include original source SP selected from SPSR.SP and
 SPSR itself. Full kernel run39952374717 remains queued; no native boot
 of this new handler or V11 BOOT package is claimed at this checkpoint.
+
+## Actual linked bootstrap in QEMU
+
+Workflow a31-bootstrap downloads the verified V11 kernel from run39952374717,
+checks source/hash, and boots its actual segments at the native >4GiB
+addresses with a synthetic two-node ADT. A small EL1 wrapper supplies
+boot_args and a 13MHz CNTFRQ. This tests original linked XNU bootstrap
+instructions, rather than a separate receiver or the fault handler alone.
+
+Run39956681635 reached first arm_init C checkpoint: physical entry, stack,
+tables and MMU-stage markers, EL1, SCTLR3454593d with M=1, CNTFRQ13MHz and
+ENTRY-CHECK PASS. It stopped at RECOVERY FAILED because the Samsung SRAM
+header and reset firmware are absent from QEMU virt. This is not native
+Galaxy A31 C entry or an iOS boot. Native V11 remained on Samsung splash;
+its logs were unavailable after the manual recovery return.
