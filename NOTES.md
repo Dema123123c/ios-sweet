@@ -8,6 +8,19 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V18 NATIVE POST-REBASE PASS. Matching cf64132 pstore session contains
+  ordered ENTRY/STACKS/TABLES/MMU, C stage1/ENTRY-CHECK PASS, C stage21
+  image rebasing done/REBASE-CHECK PASS and RECOVERY REQUEST, EL1,
+  SCTLR3454593d, CNTFRQ13000000. No failure/exception/reset-return markers.
+  User confirms automatic TWRP return (subjectively faster; no timing
+  measurement). ADB read actual matching native session immediately.
+  Only pstore proves XNU stages; last_kmsg contains loader records only.
+  Evidence research/a31-v18-post-rebase-logs/report.json; private attempt
+  operation/pending/source-audit updated. V18 BOOT efe99358...23f396d
+  retained; original BOOT restore available; no other partition writes.
+  This proves arm_setup_pre_sign and image rebasing, NOT CPU/VM startup
+  or drivers/iOS. NEXT bounded test: boot-argument copy and cpu_data_init,
+  stop BEFORE PE_init_platform until inherited SWEET platform MMIO audited.
 - V18 POST-REBASE NATIVE TEST STARTED 2026-10-23 14:18:11 UTC; user result
   pending. Source/session cf64132eaf5c67696eb5200a620f095a91085afd.
   Kernel CI39966833389 SUCCESS, 17221888B SHA

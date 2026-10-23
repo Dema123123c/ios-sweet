@@ -46,8 +46,14 @@ Kernel CI39966833389, shim CI39966833403 and actual-kernel QEMU
 CI39968197929 passed at `cf64132eaf5c67696eb5200a620f095a91085afd`.
 QEMU reaches REBASE-CHECK PASS; its absent Samsung SRAM header prevents
 firmware reset and logs RECOVERY FAILED, as expected for this emulator.
-This does not prove native completion. V18 was written/read back in BOOT
-on the A31; the phone result is pending. BOOT SHA-256:
+The subsequent native test also passed: matching `cf64132` pstore contains
+both ordered C stages, REBASE-CHECK PASS, EL1, SCTLR `0x3454593d`, CNTFRQ
+13 MHz and RECOVERY REQUEST, without failure/exception/reset-return markers.
+The user confirmed automatic TWRP return. last_kmsg contains loader records
+only; pstore establishes the XNU result. Evidence is private
+`research/a31-v18-post-rebase-logs/report.json`. V18 remains in BOOT with
+the stock restore available. CPU/VM initialization and drivers have not run.
+BOOT SHA-256:
 `efe9935846af0e1885be787a6cf1ab051a7c0215b8f25be653397345023f396d`.
 
 V7 proved native copying of the actual kernel, BSS, ADT and boot arguments.
