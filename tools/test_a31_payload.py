@@ -1,7 +1,8 @@
 import struct
+import hashlib
 import unittest
 
-from a31_payload import validate_kernel, fixture, inspect_payload
+from a31_payload import validate_kernel, fixture, inspect_payload, ENTRY_MARKERS, validate_entry_checkpoint
 from mka31diag import validate_payload_input
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,6 +19,22 @@ def kernel():
 
 
 class A31PayloadTests(unittest.TestCase):
+    def test_entry_gate_requires_exact_payload_and_checkpoint_code(self):
+        data = fixture(0x100000000, 0x3fd00000, entry_code=b'\0'.join(ENTRY_MARKERS))
+        metadata = {'payload_mode': 'XNU entry checkpoint; stop before CPU/VM startup',
+                    'kernel_jump_enabled': True, 'expected_payload_sha256': hashlib.sha256(data).hexdigest()}
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'payload'; path.write_bytes(data)
+            self.assertTrue(validate_payload_input(metadata, path)['kernel_jump_enabled'])
+            for key, value in [('expected_payload_sha256', '0' * 64), ('expected_payload_sha256', None),
+                               ('kernel_jump_enabled', False)]:
+                bad = dict(metadata); bad[key] = value
+                with self.assertRaises(ValueError): validate_payload_input(bad, path)
+            path.write_bytes(fixture(0x100000000, 0x3fd00000))
+            metadata['expected_payload_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            with self.assertRaisesRegex(ValueError, 'markers'): validate_payload_input(metadata, path)
+        with self.assertRaisesRegex(ValueError, 'entry-check'): validate_entry_checkpoint(kernel())
+        with self.assertRaises(ValueError): validate_payload_input({'kernel_jump_enabled': True}, None)
     def test_native_payload_entry_and_args_are_bounded(self):
         result = inspect_payload(fixture(0x100000000, 0x3fd00000))
         self.assertEqual(result['entry_pa'], '0x100004000')

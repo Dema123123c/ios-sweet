@@ -6,9 +6,28 @@ from a31_diag_log import inspect
 BUILD = 'a' * 40
 BEGIN = b'\n[A31-DIAG v1] BEGIN\nBUILD=' + BUILD.encode() + b'\n'
 PASS = b'MMU16K PASS\nVTIMER PASS\n[A31-DIAG] PASS\n'
+ENTRY_PASS = (b'MMU16K PASS\nVTIMER PASS\nPAYLOAD COPY/READBACK PASS\n'
+              b'[A31-DIAG] XNU HANDOFF\n[A31-XNU] ENTRY MMU-OFF v1\n'
+              b'[A31-XNU] ENTRY-CHECK PASS\n[A31-XNU] RECOVERY REQUEST\n')
 
 
 class A31LogTests(unittest.TestCase):
+    def test_handoff_is_not_kernel_entry_evidence(self):
+        self.assertEqual(inspect(BEGIN + ENTRY_PASS.split(b'[A31-XNU]')[0], BUILD)['status'], 'incomplete')
+
+    def test_kernel_entry_requires_all_markers_in_same_session(self):
+        self.assertEqual(inspect(BEGIN + ENTRY_PASS, BUILD)['status'], 'xnu_entry_pass')
+        for marker in ENTRY_PASS.splitlines(keepends=True):
+            self.assertNotEqual(inspect(BEGIN + ENTRY_PASS.replace(marker, b''), BUILD)['status'], 'xnu_entry_pass')
+
+    def test_kernel_failure_overrides_checkpoint_pass(self):
+        for error in [b'[A31-XNU] ENTRY-CHECK FAIL\n', b'[A31-XNU] PANIC: failure\n',
+                      b'[A31-XNU] RECOVERY FAILED\n', b'[A31-DIAG] FAIL exception\n']:
+            self.assertEqual(inspect(BEGIN + ENTRY_PASS + error, BUILD)['status'], 'fail')
+
+    def test_kernel_markers_cannot_be_borrowed_from_next_loader_build(self):
+        other = BEGIN.replace(BUILD.encode(), b'b' * 40)
+        self.assertEqual(inspect(BEGIN + b'[A31-DIAG] XNU HANDOFF\n' + other + ENTRY_PASS, BUILD)['status'], 'incomplete')
     def test_early_entry_only_does_not_prove_el1_handoff(self):
         result = inspect(BEGIN + b'EARLY_CURRENT_EL=0x0000000000000002\n'
                          b'EARLY ENTRY RECORDED\n', BUILD)

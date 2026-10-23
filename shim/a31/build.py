@@ -4,15 +4,20 @@ import argparse
 import gzip
 import hashlib
 import json
+import re
 import shutil
 import struct
 import subprocess
 from pathlib import Path
 
 
-def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False):
+def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, entry_check_sha=None):
     if entry_fault and not qemu:
         raise ValueError('entry fault injection is QEMU-only')
+    if entry_check_sha is not None:
+        if not re.fullmatch(r'[0-9a-f]{64}', entry_check_sha) or entry_fault:
+            raise ValueError('entry checkpoint requires one exact payload SHA-256 and no injected fault')
+        payload_check = True
     source = Path(__file__).resolve().parent
     out = Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
@@ -42,6 +47,8 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False):
              '-Wall', '-Wextra', '-Werror', f'-DDIAG_QEMU={int(qemu)}',
              f'-DDIAG_ENTRY_FAULT={int(entry_fault)}',
              f'-DDIAG_PAYLOAD_CHECK={int(payload_check)}',
+             f'-DDIAG_XNU_ENTRY={int(entry_check_sha is not None)}',
+             f'-DDIAG_ENTRY_PAYLOAD_SHA="{entry_check_sha or "disabled"}"',
              f'-DDIAG_BUILD_ID="{build_id}"']
     objects = []
     for name in ['start.S', 'support.c', 'payload.c', 'diag.c']:
@@ -77,6 +84,11 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False):
     if payload_check:
         metadata['payload_mode'] = 'prepare-only; no XNU jump'
         metadata['kernel_jump_enabled'] = False
+    if entry_check_sha is not None:
+        metadata['kind'] = 'A31 XNU entry-check loader; stops at first arm_init checkpoint'
+        metadata['payload_mode'] = 'XNU entry checkpoint; stop before CPU/VM startup'
+        metadata['kernel_jump_enabled'] = True
+        metadata['expected_payload_sha256'] = entry_check_sha
     if not qemu:
         metadata['recovery_return'] = {
             'method': 'Samsung SRAM recovery flags + PSCI SYSTEM_RESET via SMC',
@@ -101,5 +113,6 @@ if __name__ == '__main__':
                         help='QEMU only: inject an undefined instruction after the early log')
     parser.add_argument('--payload-check', action='store_true',
                         help='validate/copy the initrd XNU payload, verify readback, then return; no jump')
+    parser.add_argument('--entry-check-sha', help='enable entry only for a package with this exact payload SHA-256')
     args = parser.parse_args()
-    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check)
+    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check, args.entry_check_sha)

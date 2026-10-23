@@ -247,6 +247,7 @@ static int probe_timer(const struct dt_view *dt)
     return timer_irqs >= 3 && !other_irqs;
 }
 #if DIAG_PAYLOAD_CHECK
+extern __attribute__((noreturn)) void a31_kernel_enter(uint64_t entry, uint64_t boot_args);
 static uint64_t fdt_integer(const struct dt_property *property)
 {
     uint64_t value = 0;
@@ -297,7 +298,16 @@ static void probe_payload(const struct dt_view *dt)
     field("BOOT_ARGS_PA=", plan.args_address); field("XNU_TOP=", plan.top);
     error = a31_payload_prepare(&plan, payload_write, NULL);
     if (error) fail(error);
-    text("PAYLOAD COPY/READBACK PASS\nXNU JUMP DISABLED\n");
+    text("PAYLOAD COPY/READBACK PASS\n");
+#if DIAG_XNU_ENTRY
+    if ((READ(CurrentEL) >> 2) != 1 || (READ(sctlr_el1) & ((1ULL << 12) | 5)))
+        fail("kernel entry requires EL1 and MMU/caches off");
+    text("ENTRY_PAYLOAD_SHA256=" DIAG_ENTRY_PAYLOAD_SHA "\n");
+    text("[A31-DIAG] XNU HANDOFF\n");
+    a31_kernel_enter(plan.entry, plan.args_address);
+#else
+    text("XNU JUMP DISABLED\n");
+#endif
 }
 #endif
 void diag_exception(uint64_t slot)

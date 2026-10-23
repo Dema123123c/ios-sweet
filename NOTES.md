@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- ENTRY LOADER IMPLEMENTED, untested on native hardware. Exact payload
+  SHA-256 compiled into explicit entry mode; packaging checks that SHA,
+  compiled binding and checkpoint markers inside file-backed segments.
+  After existing validation/readback it checks EL1/MMU-caches-off, masks
+  DAIF, disables generic timers, synchronizes/I-cache invalidates, branches
+  with x0=physical boot args. No diagnostic PASS before branch. Separate
+  QEMU machine-code receiver asserts physical PC, ABI and CPU state from
+  incoming EL1/EL2. Collector distinguishes xnu_entry_pass from shim pass
+  and requires all kernel/handoff/copy markers in one expected-build session.
+  Local native+QEMU entry cross-compiles and 55 Python tests PASS. Need
+  QEMU CI run and current kernel CI39938138036 (source5a9faea) full link.
+  No new phone partition writes; V7 still installed, phone TWRP.
 - NEXT KERNEL CHECKPOINT IMPLEMENTED, not yet entered on phone. Patch0083
   logs physical entry and enables a first-C arm_init checkpoint, then
   requests recovery BEFORE rebase, CPU/VM startup or drivers. Narrow 16KiB

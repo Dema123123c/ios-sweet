@@ -36,6 +36,8 @@ jobs:
           PYTHONPATH=tools python3 -c "from pathlib import Path; from a31_payload import fixture; Path('research/a31-diag/fixture.payload').write_bytes(fixture())"
           clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/support.c shim/a31/payload.c shim/a31/payload_host_test.c -o research/a31-diag/payload-test
           research/a31-diag/payload-test research/a31-diag/fixture.payload 0x50000000 0x4000000
+          clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_entry_io_test.c -o research/a31-diag/xnu-io-test
+          research/a31-diag/xnu-io-test
       - name: A31 Python format and log checks
         run: python3 -m unittest discover -s tools -p 'test_a31*.py' -v
       - name: Build native diagnostic
@@ -54,6 +56,14 @@ jobs:
         run: |
           python3 shim/a31/build.py --qemu --payload-check --out research/a31-diag/qemu-loader
           python3 shim/a31/run_qemu.py --image research/a31-diag/qemu-loader/Image --payload research/a31-diag/fixture.payload --out research/a31-diag/test-loader-results
+      - name: Branch to a separate ABI-checking payload from both entry levels
+        run: |
+          clang --target=aarch64-none-elf -nostdlib -fuse-ld=lld -Wl,-Ttext=0x50004000 -Wl,-e,_entry shim/a31/handoff_fixture.S -o research/a31-diag/receiver.elf
+          llvm-objcopy -O binary research/a31-diag/receiver.elf research/a31-diag/receiver.bin
+          PYTHONPATH=tools python3 -c "from pathlib import Path; from a31_payload import fixture; Path('research/a31-diag/handoff.payload').write_bytes(fixture(entry_code=Path('research/a31-diag/receiver.bin').read_bytes()))"
+          PAYLOAD_SHA=$(sha256sum research/a31-diag/handoff.payload | cut -d' ' -f1)
+          python3 shim/a31/build.py --qemu --entry-check-sha "$PAYLOAD_SHA" --out research/a31-diag/qemu-entry
+          python3 shim/a31/run_qemu.py --expect-handoff --image research/a31-diag/qemu-entry/Image --payload research/a31-diag/handoff.payload --out research/a31-diag/test-entry-results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -67,4 +77,6 @@ jobs:
             research/a31-diag/native-loader/
             research/a31-diag/qemu-loader/
             research/a31-diag/test-loader-results/
+            research/a31-diag/qemu-entry/
+            research/a31-diag/test-entry-results/
           retention-days: 7

@@ -140,8 +140,21 @@ def validate_kernel(data):
             'entry': hex(entry), 'text': hex(text), 'architecture': 'arm64', 'segments': len(spans)}
 
 
-def build(kernel, tree, output, command_line):
+ENTRY_MARKERS = (b'[A31-XNU] ENTRY MMU-OFF v1', b'[A31-XNU] ENTRY-CHECK PASS',
+                 b'[A31-XNU] RECOVERY REQUEST', b'XNU_SCTLR_EL1=')
+
+
+def validate_entry_checkpoint(data):
+    result = validate_kernel(data)
+    if any(marker not in data for marker in ENTRY_MARKERS):
+        raise ValueError('A31 entry-check code missing from linked kernel')
+    return result
+
+
+def build(kernel, tree, output, command_line, entry_checkpoint=False):
     report = validate_kernel(kernel.read_bytes())
+    if entry_checkpoint:
+        report = validate_entry_checkpoint(kernel.read_bytes())
     blob = tree.read_bytes()
     root, end = adt.parse(blob)
     if end != len(blob) or b'samsung,a31\0' not in (root.prop('compatible') or b''):
@@ -158,13 +171,14 @@ def build(kernel, tree, output, command_line):
     output.write_bytes(payload)
     report.update({'payload_sha256': hashlib.sha256(payload).hexdigest(),
                    'payload_bytes': len(payload), 'adt_sha256': hashlib.sha256(blob).hexdigest(),
-                   'mode': 'prepare/readback only; kernel jump disabled', 'packed': packed,
+                   'mode': ('XNU entry-check payload; requires separately gated entry loader' if entry_checkpoint
+                            else 'prepare/readback only; kernel jump disabled'), 'packed': packed,
                    'loader_validation': checked})
     output.with_suffix('.json').write_text(json.dumps(report, indent=2) + '\n')
     return report
 
 
-def fixture(base=0x50000000, size=0x4000000):
+def fixture(base=0x50000000, size=0x4000000, entry_code=None):
     root, chosen = adt.Node(), adt.Node()
     root.props = [('name', 0, b'device-tree\0')]
     chosen.props = [('name', 0, b'chosen\0'), ('dram-base', 0, struct.pack('<Q', base)),
@@ -174,7 +188,10 @@ def fixture(base=0x50000000, size=0x4000000):
     out = bytearray(0x2e8)
     virtual = 0xfffffe0006000000
     first = len(out)
-    out += b'KERNEL-ENTRY!' + bytes(3)
+    code = b'KERNEL-ENTRY!' if entry_code is None else entry_code
+    if not 1 <= len(code) < 0x4000:
+        raise ValueError('fixture entry must fit one page')
+    out += code + bytes((-len(code)) % 8)
     second = len(out)
     out += b'SECOND!!'
     tree_offset = len(out)
@@ -182,7 +199,7 @@ def fixture(base=0x50000000, size=0x4000000):
     struct.pack_into('<8sII7Q', out, 0, b'SWEETXNU', 1, 2, virtual, virtual + 0x4000,
                      tree_offset, len(tree), virtual + 0xc000, base, size)
     out[0x48:0x50] = b'cpus=1\0\0'
-    struct.pack_into('<4Q', out, 0x2a8, virtual + 0x4000, 0x4000, first, 13)
+    struct.pack_into('<4Q', out, 0x2a8, virtual + 0x4000, 0x4000, first, len(code))
     struct.pack_into('<4Q', out, 0x2c8, virtual + 0x8000, 0x4000, second, 8)
     return bytes(out)
 
@@ -193,5 +210,6 @@ if __name__ == '__main__':
     parser.add_argument('--adt', required=True, type=Path)
     parser.add_argument('--out', required=True, type=Path)
     parser.add_argument('--cmdline', default='debug=0xc serial=3 cpus=1 keepsyms=1')
+    parser.add_argument('--entry-checkpoint', action='store_true', help='require compiled A31 entry/return checkpoint markers')
     args = parser.parse_args()
-    print(json.dumps(build(args.kernel, args.adt, args.out, args.cmdline), indent=2))
+    print(json.dumps(build(args.kernel, args.adt, args.out, args.cmdline, args.entry_checkpoint), indent=2))

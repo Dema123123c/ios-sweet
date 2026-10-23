@@ -29,8 +29,18 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|PANIC:|RECOVERY FAILED)', session, re.M)
+        entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
+            'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
+            '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
+        if entry_failure:
+            status = 'fail'
+        elif entry_pass and not failure:
+            status = 'xnu_entry_pass'
         found.append({'status': status, 'build_id': expected_build, 'fields': fields,
                       'failure': failure.group(1) if failure else None,
+                      'xnu_entry_pass': entry_pass and not failure and not entry_failure,
+                      'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
                       'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})
     return {'status': found[-1]['status'] if found else 'not_found', 'sessions': found}

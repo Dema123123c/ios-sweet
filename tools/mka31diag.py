@@ -6,6 +6,7 @@ import hashlib
 import io
 import importlib.util
 import json
+import re
 import shutil
 import struct
 import subprocess
@@ -63,13 +64,29 @@ def validate_return_recovery(metadata, recovery_image):
 
 def validate_payload_input(metadata, payload):
     mode = metadata.get('payload_mode')
-    if not mode and payload is None:
+    if not mode and payload is None and metadata.get('kernel_jump_enabled') is not True:
         return None
-    if mode != 'prepare-only; no XNU jump' or metadata.get('kernel_jump_enabled') is not False:
+    entry_mode = mode == 'XNU entry checkpoint; stop before CPU/VM startup'
+    if not entry_mode and (mode != 'prepare-only; no XNU jump' or metadata.get('kernel_jump_enabled') is not False):
         raise ValueError('payload only allowed with the explicit prepare-only native loader')
     if payload is None:
         raise ValueError('payload checker requires --payload')
-    return inspect_payload(payload.read_bytes())
+    data = payload.read_bytes()
+    result = inspect_payload(data)
+    if entry_mode:
+        expected = metadata.get('expected_payload_sha256')
+        if (metadata.get('kernel_jump_enabled') is not True or not isinstance(expected, str) or
+                not re.fullmatch(r'[0-9a-f]{64}', expected) or result['sha256'] != expected):
+            raise ValueError('entry checkpoint requires the exact payload SHA-256 bound into its loader')
+        from a31_payload import ENTRY_MARKERS
+        segments = []
+        for i in range(result['segments']):
+            offset, size = struct.unpack_from('<2Q', data, 0x2a8 + 32 * i + 16)
+            segments.append(data[offset:offset + size])
+        if any(not any(marker in segment for segment in segments) for marker in ENTRY_MARKERS):
+            raise ValueError('entry checkpoint markers missing from payload')
+        result['kernel_jump_enabled'] = True
+    return result
 
 
 def validate_unlocked_stock(properties):
@@ -248,6 +265,9 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
     compressed = (native_dir / 'Image.gz').read_bytes()
     if metadata['qemu'] is not False or metadata['sha256'] != sha(raw) or gzip.decompress(compressed) != raw:
         raise ValueError('native diagnostic Image/manifest mismatch (QEMU image is forbidden)')
+    if checked_payload and checked_payload['kernel_jump_enabled']:
+        if metadata['expected_payload_sha256'].encode() not in raw:
+            raise ValueError('entry payload SHA-256 is not bound into the compiled loader')
     if raw[56:60] != b'ARM\x64' or struct.unpack_from('<QQQ', raw, 8) != (0x80000, len(raw), 12):
         raise ValueError('diagnostic Linux Image header mismatch')
     for name, tool in [('mkbootimg', mkbootimg), ('avbtool', avbtool)]:
@@ -313,8 +333,9 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
     package_tar(output / 'a31-diagnostic-boot.tar', diagnostic)
     package_tar(output / 'a31-original-boot-restore.tar', stock)
     report = {'device': 'SM-A315F', 'firmware_template': 'A315FXXU5DXJ1',
-              'kind': 'XNU payload preparation/readback only; no kernel jump' if checked_payload
-                      else 'diagnostic only; no XNU handoff', 'native_boot_tested': False,
+               'kind': ('XNU entry checkpoint; stop before CPU/VM startup' if checked_payload and checked_payload['kernel_jump_enabled']
+                        else 'XNU payload preparation/readback only; no kernel jump' if checked_payload
+                        else 'diagnostic only; no XNU handoff'), 'native_boot_tested': False,
               'writes_performed_on_phone': False, 'target_partition': 'BOOT only',
               'stock_sha256': sha(stock), 'diagnostic_sha256': sha(diagnostic),
               'image_sha256': sha(raw), 'avb_algorithm': 'NONE (unsigned)',
@@ -357,7 +378,7 @@ if __name__ == '__main__':
     parser.add_argument('--recovery-image', type=Path,
                         help='current matching TWRP partition dump; required by automatic-return diagnostics')
     parser.add_argument('--payload', type=Path,
-                        help='XNU payload replaces template ramdisk only for the prepare-only checker')
+                        help='checked XNU payload for prepare-only or an exact-SHA entry-check loader')
     args = parser.parse_args()
     build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
           args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve(),

@@ -41,3 +41,17 @@ Compilation, host tests, and copied payloads do not demonstrate entry.
 The phone result must contain the actual XNU entry marker, matching
 loader build session, C checkpoint PASS and recovery request. A loader
 handoff message or a return to TWRP alone is insufficient evidence.
+
+The separate loader mode requires `--entry-check-sha` with the exact
+payload SHA-256; the packager checks this hash, its presence in the compiled
+loader and the checkpoint markers within file-backed payload segments.
+After successful copying/readback, it requires EL1 with MMU/D-cache/I-cache
+off, masks DAIF, disables both generic timers, synchronizes writes,
+invalidates the I-cache and branches to the physical Mach-O entry with
+`x0 = boot_args PA`. The existing diagnostic vectors remain until XNU
+replaces them. It does not emit diagnostic PASS before the kernel branch.
+
+A QEMU-only machine-code receiver tests the actual branch, physical PC,
+`x0`/boot-args fields, EL1, masked DAIF, caches/MMU off and timers disabled
+from incoming EL1 and EL2. This proves the handoff ABI for that fixture,
+not XNU execution. Its payload and QEMU image must never be flashed.

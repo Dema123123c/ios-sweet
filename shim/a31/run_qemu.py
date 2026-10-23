@@ -6,7 +6,9 @@ import subprocess
 from pathlib import Path
 
 
-def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False, payload=None):
+def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False, payload=None, expect_handoff=False):
+    if expect_handoff and (payload is None or expect_entry_fault):
+        raise ValueError('handoff test requires an executable payload and no entry fault')
     image, out = Path(image).resolve(), Path(out).resolve()
     out.mkdir(parents=True, exist_ok=True)
     reports = []
@@ -37,17 +39,23 @@ def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False, payloa
             forbidden = ['EL1 HANDOFF RECORDED', '[A31-DIAG] PASS']
         else:
             expected += ['EL1 HANDOFF RECORDED', 'CURRENT_EL=0x0000000000000001',
-                         'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS']
+                         'MMU16K PASS', 'VTIMER PASS']
             expected_return = 0
             forbidden = ['[A31-DIAG] FAIL ']
             if payload is not None:
-                expected += ['PAYLOAD COPY/READBACK PASS', 'XNU JUMP DISABLED',
+                expected += ['PAYLOAD COPY/READBACK PASS',
                              'XNU_ENTRY_PA=0x0000000050004000']
+            if expect_handoff:
+                expected += ['[A31-DIAG] XNU HANDOFF', 'A31 HANDOFF FIXTURE PASS']
+                forbidden += ['XNU JUMP DISABLED', '[A31-DIAG] PASS', 'A31 HANDOFF FIXTURE FAIL']
+            else:
+                expected += ['[A31-DIAG] PASS']
+                if payload is not None: expected += ['XNU JUMP DISABLED']
         if (result.returncode != expected_return or any(item not in text for item in expected)
                 or any(item in text for item in forbidden)):
             raise RuntimeError(f'EL{entry} QEMU diagnostic failed, return code {result.returncode}')
         reports.append({'entry_el': entry, 'result': 'pass', 'virtualization': virtualization,
-                        'entry_fault_caught': expect_entry_fault})
+                        'entry_fault_caught': expect_entry_fault, 'handoff_fixture_pass': expect_handoff})
     (out / 'qemu-results.json').write_text(json.dumps(reports, indent=2) + '\n', encoding='utf-8')
 
 
@@ -58,5 +66,6 @@ if __name__ == '__main__':
     parser.add_argument('--qemu', default='qemu-system-aarch64')
     parser.add_argument('--expect-entry-fault', action='store_true')
     parser.add_argument('--payload', type=Path)
+    parser.add_argument('--expect-handoff', action='store_true')
     args = parser.parse_args()
-    run(args.image, args.out, args.qemu, args.expect_entry_fault, args.payload)
+    run(args.image, args.out, args.qemu, args.expect_entry_fault, args.payload, args.expect_handoff)

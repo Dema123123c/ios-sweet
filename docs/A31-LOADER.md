@@ -53,5 +53,9 @@ failure. V7 also passed copying on actual hardware.
 Success must include `PAYLOAD COPY/READBACK PASS` and `XNU JUMP DISABLED`.
 Neither that result nor simulator tests demonstrate XNU execution.
 
-Next: A31-specific early XNU log mappings and panic recovery, then actual
-Mach-O/ADT/boot-args handoff. No kernel-entry mode is exposed by this stage.
+The prepare-only mode remains the default. A separate entry-check mode
+now requires an exact payload SHA-256 embedded into the compiled loader,
+matching packaged bytes and checkpoint markers inside file-backed kernel
+segments. It is intended only for the kernel described in
+`A31-XNU-ENTRY.md`, which returns at the first C checkpoint. This mode
+must not be confused with a general kernel boot or the V7 measured result.
