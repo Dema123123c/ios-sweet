@@ -39,15 +39,24 @@ def inspect(data, expected_build):
             fields.get('ENTRY_TRAP_ESR') == '0x00000000f2000a31' and
             fields.get('ENTRY_TRAP_ELR') is not None and
             fields.get('ENTRY_TRAP_ELR') == fields.get('XNU_ENTRY_PA'))
+        early_asm_pass = (complete and not failure and all(re.search(r'^' + re.escape(line) + r'$', session, re.M)
+            for line in ['PAYLOAD COPY/READBACK PASS', 'EARLY XNU BRK ARMED',
+                         '[A31-DIAG] XNU HANDOFF', '[A31-XNU] ENTRY MMU-OFF v1', 'PHYSICAL ENTRY BRK PASS']) and
+            fields.get('ENTRY_TRAP_ESR') == '0x00000000f2000a31' and
+            fields.get('ENTRY_TRAP_ELR') == '0x000000010148e100' and
+            fields.get('ENTRY_TRAP_TARGET') == fields.get('ENTRY_TRAP_ELR') and
+            fields.get('XNU_ENTRY_PA') == '0x000000010148c488')
         if entry_failure:
             status = 'fail'
         elif entry_pass and not failure:
             status = 'xnu_entry_pass'
+        elif early_asm_pass:
+            status = 'xnu_early_asm_pass'
         elif entry_trap_pass:
             status = 'entry_trap_pass'
         found.append({'status': status, 'build_id': expected_build, 'fields': fields,
                       'failure': failure.group(1) if failure else None,
-                      'physical_entry_trap_pass': entry_trap_pass,
+                      'physical_entry_trap_pass': entry_trap_pass, 'xnu_early_asm_pass': early_asm_pass,
                       'xnu_entry_pass': entry_pass and not failure and not entry_failure,
                       'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),

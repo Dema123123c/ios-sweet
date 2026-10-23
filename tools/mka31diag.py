@@ -66,7 +66,8 @@ def validate_payload_input(metadata, payload):
     mode = metadata.get('payload_mode')
     if not mode and payload is None and metadata.get('kernel_jump_enabled') is not True:
         return None
-    trap_mode = mode == 'physical entry BRK control; no XNU instructions'
+    early_mode = mode == 'early XNU assembler BRK checkpoint'
+    trap_mode = early_mode or mode == 'physical entry BRK control; no XNU instructions'
     entry_mode = trap_mode or mode == 'XNU entry checkpoint; stop before CPU/VM startup'
     if not entry_mode and (mode != 'prepare-only; no XNU jump' or metadata.get('kernel_jump_enabled') is not False):
         raise ValueError('payload only allowed with the explicit prepare-only native loader')
@@ -82,6 +83,11 @@ def validate_payload_input(metadata, payload):
         if trap_mode:
             if metadata.get('entry_trap_control') is not True:
                 raise ValueError('entry trap requires explicit control metadata')
+            if early_mode:
+                if (metadata.get('trap_offset'), metadata.get('trap_instruction'), expected) != (
+                        0x1c78, 0xf0ffffe0, '8d60696d9394a073bd911ca301f32b696ffa949c12dbac573ddf5773b36c030d'):
+                    raise ValueError('early checkpoint differs from audited V8 code')
+                result['early_assembler_checkpoint'] = True
             result['kernel_jump_enabled'] = True
             result['entry_trap_control'] = True
             return result
@@ -340,7 +346,8 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
     package_tar(output / 'a31-diagnostic-boot.tar', diagnostic)
     package_tar(output / 'a31-original-boot-restore.tar', stock)
     report = {'device': 'SM-A315F', 'firmware_template': 'A315FXXU5DXJ1',
-               'kind': ('physical entry BRK control; no XNU instructions' if checked_payload and checked_payload.get('entry_trap_control')
+               'kind': ('early XNU assembler BRK checkpoint' if checked_payload and checked_payload.get('early_assembler_checkpoint')
+                        else 'physical entry BRK control; no XNU instructions' if checked_payload and checked_payload.get('entry_trap_control')
                         else 'XNU entry checkpoint; stop before CPU/VM startup' if checked_payload and checked_payload['kernel_jump_enabled']
                         else 'XNU payload preparation/readback only; no kernel jump' if checked_payload
                         else 'diagnostic only; no XNU handoff'), 'native_boot_tested': False,

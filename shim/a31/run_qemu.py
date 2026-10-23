@@ -6,7 +6,9 @@ import subprocess
 from pathlib import Path
 
 
-def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False, payload=None, expect_handoff=False, expect_trap=False):
+def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False, payload=None, expect_handoff=False, expect_trap=False, expect_early=False):
+    if expect_early:
+        expect_trap = True
     if expect_trap and (payload is None or expect_entry_fault or expect_handoff):
         raise ValueError("entry trap requires a payload and no other fault mode")
     if expect_handoff and (payload is None or expect_entry_fault):
@@ -48,9 +50,12 @@ def run(image, out, qemu='qemu-system-aarch64', expect_entry_fault=False, payloa
                 expected += ['PAYLOAD COPY/READBACK PASS',
                              'XNU_ENTRY_PA=0x0000000050004000']
             if expect_trap:
-                expected += ['ENTRY BRK ARMED; NO XNU INSTRUCTIONS', 'PHYSICAL ENTRY BRK PASS',
-                             'ENTRY_TRAP_ELR=0x0000000050004000',
+                expected += ['EARLY XNU BRK ARMED' if expect_early else 'ENTRY BRK ARMED; NO XNU INSTRUCTIONS', 'PHYSICAL ENTRY BRK PASS',
+                             'ENTRY_TRAP_ELR=0x0000000050005c78' if expect_early else 'ENTRY_TRAP_ELR=0x0000000050004000',
                              'ENTRY_TRAP_ESR=0x00000000f2000a31', '[A31-DIAG] PASS']
+                if expect_early:
+                    expected += ['A31 EARLY RECEIVER REACHED']
+                    forbidden += ['A31 EARLY RECEIVER OVERSTEP']
                 forbidden += ['XNU JUMP DISABLED', 'A31 HANDOFF FIXTURE PASS', 'A31 HANDOFF FIXTURE FAIL']
             elif expect_handoff:
                 expected += ['[A31-DIAG] XNU HANDOFF', 'A31 HANDOFF FIXTURE PASS']
@@ -75,5 +80,6 @@ if __name__ == '__main__':
     parser.add_argument('--payload', type=Path)
     parser.add_argument('--expect-handoff', action='store_true')
     parser.add_argument("--expect-trap", action="store_true")
+    parser.add_argument("--expect-early", action="store_true")
     args = parser.parse_args()
-    run(args.image, args.out, args.qemu, args.expect_entry_fault, args.payload, args.expect_handoff, args.expect_trap)
+    run(args.image, args.out, args.qemu, args.expect_entry_fault, args.payload, args.expect_handoff, args.expect_trap, args.expect_early)

@@ -12,6 +12,18 @@ ENTRY_PASS = (b'MMU16K PASS\nVTIMER PASS\nPAYLOAD COPY/READBACK PASS\n'
 
 
 class A31LogTests(unittest.TestCase):
+    def test_early_asm_requires_kernel_marker_and_audited_checkpoint(self):
+        records = (b'XNU_ENTRY_PA=0x000000010148c488\nENTRY_TRAP_ELR=0x000000010148e100\n'
+                   b'ENTRY_TRAP_TARGET=0x000000010148e100\nENTRY_TRAP_ESR=0x00000000f2000a31\n'
+                   b'PAYLOAD COPY/READBACK PASS\nEARLY XNU BRK ARMED\n[A31-DIAG] XNU HANDOFF\n'
+                   b'[A31-XNU] ENTRY MMU-OFF v1\nPHYSICAL ENTRY BRK PASS\n')
+        result = inspect(BEGIN + records + PASS, BUILD)
+        self.assertEqual(result['status'], 'xnu_early_asm_pass')
+        self.assertFalse(result['sessions'][0]['xnu_entry_pass'])
+        for bad in [records.replace(b'[A31-XNU] ENTRY MMU-OFF v1\n', b''),
+                    records.replace(b'ENTRY_TRAP_ELR=0x000000010148e100', b'ENTRY_TRAP_ELR=0x000000010148e104')]:
+            self.assertFalse(inspect(BEGIN + bad + PASS, BUILD)['sessions'][0]['xnu_early_asm_pass'])
+
     def test_entry_trap_is_distinct_from_xnu_execution(self):
         records = (b'XNU_ENTRY_PA=0x000000010148c488\nENTRY_TRAP_ELR=0x000000010148c488\n'
                    b'ENTRY_TRAP_ESR=0x00000000f2000a31\nPAYLOAD COPY/READBACK PASS\n'

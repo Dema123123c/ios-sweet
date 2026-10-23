@@ -8,6 +8,16 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- NEXT PRE-VBAR EARLY-ASSEMBLER CHECKPOINT implemented, not flashed.
+  Audited actual V8 words: entry14000719 branches to PA10148e0ec;
+  OSLAR/DAIF/MOV x20/MOV x21/BL entry_record precede ADRPf0ffffe0 at
+  PA10148e100 (entry+1c78). Move RAM BRK there, require exact opcode,
+  offset and V8 payload SHA in native build/package, file-backed target
+  bounds and opcode readback at runtime. Loader vectors/SP remain intact
+  at that checkpoint. This can prove early XNU assembler+RAM marker, not
+  C or MMU startup. Separate synthetic QEMU receiver tests nonzero offset.
+  58 Python and native object/link cross-compile PASS, QEMU CI pending.
+  V9 remains installed/phone TWRP; no new phone writes since V9 result.
 - V9 ACTUAL HARDWARE PHYSICAL ENTRY BRK PASS. User observed automatic
   TWRP return; expected0ffbb56 session recovered from BOTH last_kmsg and
   console-ramoops in research/a31-v9-entry-brk-logs/report.json. MMU16K,

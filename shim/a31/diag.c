@@ -307,13 +307,28 @@ static void probe_payload(const struct dt_view *dt)
         fail("kernel entry requires EL1 and MMU/caches off");
     text("ENTRY_PAYLOAD_SHA256=" DIAG_ENTRY_PAYLOAD_SHA "\n");
 #if DIAG_ENTRY_TRAP
-    entry_trap_address = plan.entry;
-    field("ENTRY_ORIGINAL_INSTRUCTION=", read32(plan.entry));
+    entry_trap_address = plan.entry + DIAG_TRAP_OFFSET;
+    int trap_in_file = 0;
+    for (uint32_t i = 0; i < plan.count; i++) {
+        const struct a31_payload_segment *segment = &plan.segments[i];
+        if (segment->file_size >= 4 && entry_trap_address >= segment->destination &&
+            entry_trap_address - segment->destination <= segment->file_size - 4) trap_in_file = 1;
+    }
+    if (!trap_in_file || (entry_trap_address & 3)) fail("entry trap outside copied file bytes");
+    field("ENTRY_TRAP_TARGET=", entry_trap_address);
+#if DIAG_TRAP_OFFSET
+    if (read32(entry_trap_address) != DIAG_TRAP_INSTRUCTION) fail("checkpoint opcode mismatch");
+#endif
+    field("ENTRY_ORIGINAL_INSTRUCTION=", read32(entry_trap_address));
     /* BRK #0xa31 in the copied RAM image only. BOOT/payload remain intact. */
-    write32(plan.entry, 0xd4214620U);
+    write32(entry_trap_address, 0xd4214620U);
     BARRIER();
-    if (read32(plan.entry) != 0xd4214620U) fail("entry BRK readback");
+    if (read32(entry_trap_address) != 0xd4214620U) fail("entry BRK readback");
+#if DIAG_TRAP_OFFSET
+    text("EARLY XNU BRK ARMED\n");
+#else
     text("ENTRY BRK ARMED; NO XNU INSTRUCTIONS\n");
+#endif
 #endif
     text("[A31-DIAG] XNU HANDOFF\n");
     a31_kernel_enter(plan.entry, plan.args_address);

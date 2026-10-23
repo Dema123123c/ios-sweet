@@ -77,3 +77,22 @@ No original XNU instruction executes in this control. It tests the real
 physical branch and exception-return logging, not XNU startup.
 QEMU tests both incoming EL1 and EL2 and forbids execution of the normal
 receiver's success/failure messages in this mode.
+
+V9 then passed on the actual A31: both recovered log sources contained
+expected source0ffbb56, ELR10148c488 and ESRf2000a31, plus copy/core PASS
+and automatic recovery return. This establishes the physical branch and
+BRK control at the real high-RAM entry, not execution of original XNU.
+
+The next control moves the RAM-only BRK to entry +0x1c78, PA10148e100.
+The exact V8 kernel begins with B14000719 to start_first_cpu10148e0ec,
+then MSR OSLAR, DAIF mask, MOV x20/x0, MOV x21/0 and BL entry_record.
+The checkpoint replaces ADRP opcodef0ffffe0 immediately AFTER that call,
+before XNU replaces VBAR or SP. The original marker routine returns with
+the loader's vectors/stack intact. Native building/packaging demand this
+exact offset, original opcode and V8 payload SHA; runtime checks that the
+word lies inside copied file-backed bytes and still has that opcode.
+Unlike the zero-offset control, original early XNU assembler does execute.
+It still does not reach C or enable the kernel MMU. Evidence requires the
+actual XNU physical marker and exact checkpoint ELR in one loader session.
+A separate synthetic QEMU receiver exercises the same nonzero offset,
+with its own fixture label; it is not presented as an XNU boot.

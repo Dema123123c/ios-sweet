@@ -11,7 +11,12 @@ import subprocess
 from pathlib import Path
 
 
-def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, entry_check_sha=None, entry_trap=False):
+def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, entry_check_sha=None, entry_trap=False, trap_offset=0, trap_instruction=0):
+    if trap_offset:
+        if not entry_trap or trap_offset != 0x1c78 or trap_instruction not in (0xf0ffffe0, 0xd503201f):
+            raise ValueError('only the audited pre-VBAR checkpoint is supported')
+        if not qemu and (trap_instruction != 0xf0ffffe0 or entry_check_sha != '8d60696d9394a073bd911ca301f32b696ffa949c12dbac573ddf5773b36c030d'):
+            raise ValueError('native pre-VBAR checkpoint requires exact audited V8 payload')
     if entry_trap and entry_check_sha is None:
         raise ValueError('entry trap requires an exact payload SHA-256')
     if entry_fault and not qemu:
@@ -51,6 +56,7 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, e
              f'-DDIAG_PAYLOAD_CHECK={int(payload_check)}',
              f'-DDIAG_XNU_ENTRY={int(entry_check_sha is not None)}',
              f'-DDIAG_ENTRY_TRAP={int(entry_trap)}',
+             f'-DDIAG_TRAP_OFFSET={trap_offset}', f'-DDIAG_TRAP_INSTRUCTION={trap_instruction}U',
              f'-DDIAG_ENTRY_PAYLOAD_SHA="{entry_check_sha or "disabled"}"',
              f'-DDIAG_BUILD_ID="{build_id}"']
     objects = []
@@ -96,6 +102,10 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, e
         metadata['kind'] = 'A31 physical entry BRK control; no XNU instructions'
         metadata['payload_mode'] = 'physical entry BRK control; no XNU instructions'
         metadata['entry_trap_control'] = True
+    if trap_offset:
+        metadata['kind'] = metadata['payload_mode'] = 'early XNU assembler BRK checkpoint'
+        metadata['trap_offset'] = trap_offset
+        metadata['trap_instruction'] = trap_instruction
     if not qemu:
         metadata['recovery_return'] = {
             'method': 'Samsung SRAM recovery flags + PSCI SYSTEM_RESET via SMC',
@@ -122,5 +132,7 @@ if __name__ == '__main__':
                         help='validate/copy the initrd XNU payload, verify readback, then return; no jump')
     parser.add_argument('--entry-check-sha', help='enable entry only for a package with this exact payload SHA-256')
     parser.add_argument('--entry-trap', action='store_true', help='replace the copied entry instruction in RAM with BRK; never execute XNU')
+    parser.add_argument('--trap-offset', type=lambda s: int(s, 0), default=0)
+    parser.add_argument('--trap-instruction', type=lambda s: int(s, 0), default=0)
     args = parser.parse_args()
-    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check, args.entry_check_sha, args.entry_trap)
+    build(args.out, args.cc, args.qemu, args.entry_fault_test, args.payload_check, args.entry_check_sha, args.entry_trap, args.trap_offset, args.trap_instruction)

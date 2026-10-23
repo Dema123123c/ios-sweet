@@ -69,6 +69,14 @@ jobs:
           PAYLOAD_SHA=$(sha256sum research/a31-diag/handoff.payload | cut -d' ' -f1)
           python3 shim/a31/build.py --qemu --entry-check-sha "$PAYLOAD_SHA" --entry-trap --out research/a31-diag/qemu-entry-trap
           python3 shim/a31/run_qemu.py --expect-trap --image research/a31-diag/qemu-entry-trap/Image --payload research/a31-diag/handoff.payload --out research/a31-diag/test-entry-trap-results
+      - name: Stop a synthetic early receiver at the audited pre-VBAR offset
+        run: |
+          clang --target=aarch64-none-elf -nostdlib -fuse-ld=lld -Wl,-Ttext=0x50004000 -Wl,-e,_entry shim/a31/early_receiver.S -o research/a31-diag/early.elf
+          llvm-objcopy -O binary research/a31-diag/early.elf research/a31-diag/early.bin
+          PYTHONPATH=tools python3 -c "from pathlib import Path; from a31_payload import fixture; Path('research/a31-diag/early.payload').write_bytes(fixture(entry_code=Path('research/a31-diag/early.bin').read_bytes()))"
+          PAYLOAD_SHA=$(sha256sum research/a31-diag/early.payload | cut -d' ' -f1)
+          python3 shim/a31/build.py --qemu --entry-check-sha "$PAYLOAD_SHA" --entry-trap --trap-offset 0x1c78 --trap-instruction 0xd503201f --out research/a31-diag/qemu-early-brk
+          python3 shim/a31/run_qemu.py --expect-early --image research/a31-diag/qemu-early-brk/Image --payload research/a31-diag/early.payload --out research/a31-diag/test-early-brk-results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -86,4 +94,6 @@ jobs:
             research/a31-diag/test-entry-results/
             research/a31-diag/qemu-entry-trap/
             research/a31-diag/test-entry-trap-results/
+            research/a31-diag/qemu-early-brk/
+            research/a31-diag/test-early-brk-results/
           retention-days: 7
