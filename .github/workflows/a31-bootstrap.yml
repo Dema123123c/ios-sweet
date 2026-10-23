@@ -9,6 +9,10 @@ on:
         description: Require the post-rebase checkpoint in the selected new kernel
         type: boolean
         default: false
+      cpu_data:
+        description: Require copied boot arguments and initial CPU data checkpoint
+        type: boolean
+        default: false
       pre_mmu_trap:
         description: Stop the exact V11 kernel at the audited instruction before MMU enable
         type: boolean
@@ -43,6 +47,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           KERNEL_RUN: ${{ inputs.kernel_run || '39952374717' }}
           POST_REBASE: ${{ inputs.post_rebase && 'true' || 'false' }}
+          CPU_DATA: ${{ inputs.cpu_data && 'true' || 'false' }}
         run: |
           gh run view "$KERNEL_RUN" --repo "$GITHUB_REPOSITORY" --json status,conclusion,headSha > research-run.json
           gh run download "$KERNEL_RUN" --repo "$GITHUB_REPOSITORY" --name xnu-kernel --dir research/v11-kernel
@@ -56,15 +61,17 @@ jobs:
           assert report['source'] == run['headSha']
           digest = hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest()
           assert digest == report['sha256']
-          if os.environ['POST_REBASE'] == 'true':
+          if os.environ['POST_REBASE'] == 'true' or os.environ['CPU_DATA'] == 'true':
               assert report['source'] == os.environ['GITHUB_SHA']
-              assert report['kind'] == 'A31 XNU post-rebase checkpoint only'
+              expected_kind = ('A31 XNU boot-CPU-data checkpoint only' if os.environ['CPU_DATA'] == 'true'
+                               else 'A31 XNU post-rebase checkpoint only')
+              assert report['kind'] == expected_kind
               assert report['reset_code']['machine_code_verified'] is True
           else:
               assert digest == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
           PY
       - name: Observe actual linked XNU bootstrap
-        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }} ${{ inputs.post_rebase && '--post-rebase' || '' }}
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }} ${{ inputs.post_rebase && '--post-rebase' || '' }} ${{ inputs.cpu_data && '--cpu-data' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

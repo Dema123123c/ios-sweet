@@ -12,6 +12,26 @@ ENTRY_PASS = (b'MMU16K PASS\nVTIMER PASS\nPAYLOAD COPY/READBACK PASS\n'
 
 
 class A31LogTests(unittest.TestCase):
+    def test_cpu_data_requires_prior_checkpoints_and_ordered_completion(self):
+        rebase = (b'[A31-XNU] C STAGE 1: arm_init entered (MMU on)\n'
+                  b'[A31-XNU] ENTRY-CHECK PASS\n'
+                  b'[A31-XNU] C STAGE 21: image rebasing done; before boot args and CPU data\n'
+                  b'XNU_CURRENT_EL=0x0000000000000001\nXNU_SCTLR_EL1=0x000000003454593d\n'
+                  b'XNU_CNTFRQ=0x0000000000c65d40\n[A31-XNU] REBASE-CHECK PASS\n')
+        cpu = (b'[A31-XNU] C STAGE 22: boot args copied; CPU data initialized; before platform\n'
+               b'[A31-XNU] CPU-DATA-CHECK PASS\n')
+        good = ENTRY_PASS.replace(b'[A31-XNU] ENTRY-CHECK PASS\n', rebase + cpu)
+        self.assertEqual(inspect(BEGIN + good, BUILD)['status'], 'xnu_cpu_data_pass')
+        bads = [good.replace(rebase, b''), good.replace(cpu, b''),
+                good.replace(rebase + cpu, cpu + rebase),
+                good.replace(b'CPU-DATA-CHECK PASS', b'CPU-DATA-CHECK FAIL'),
+                good + b'[A31-XNU] PANIC: cpu failure\n',
+                good.replace(b'XNU_SCTLR_EL1=0x000000003454593d', b'XNU_SCTLR_EL1=0x000000003454593c')]
+        for bad in bads:
+            self.assertFalse(inspect(BEGIN + bad, BUILD)['sessions'][0]['xnu_cpu_data_pass'])
+        # A later loader session cannot supply the missing completion.
+        self.assertFalse(inspect(BEGIN + good.replace(cpu, b'') + BEGIN + cpu, BUILD)['sessions'][0]['xnu_cpu_data_pass'])
+
     def test_rebase_requires_ordered_native_stages_registers_and_no_failure(self):
         stage = (b'[A31-XNU] C STAGE 21: image rebasing done; before boot args and CPU data\n'
                  b'XNU_CURRENT_EL=0x0000000000000001\nXNU_SCTLR_EL1=0x000000003454593d\n'

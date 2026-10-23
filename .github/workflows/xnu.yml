@@ -119,11 +119,13 @@ jobs:
                          b'[A31-XNU] BOOT EXCEPTION', b'[A31-XNU] STACKS NEXT',
                          b'[A31-XNU] TABLES READY', b'[A31-XNU] MMU ENABLE NEXT',
                          b'[A31-XNU] REBASE-CHECK PASS',
-                         b'image rebasing done; before boot args and CPU data'):
+                         b'image rebasing done; before boot args and CPU data',
+                         b'[A31-XNU] CPU-DATA-CHECK PASS',
+                         b'boot args copied; CPU data initialized; before platform'):
               if marker not in data:
                   raise SystemExit('A31 entry-check code missing from linked kernel')
-          result.update(source=os.environ['GITHUB_SHA'], kind='A31 XNU post-rebase checkpoint only',
-                        stops_before='boot-argument copy, CPU/VM startup and drivers',
+          result.update(source=os.environ['GITHUB_SHA'], kind='A31 XNU boot-CPU-data checkpoint only',
+                        stops_before='PE_init_platform, CPU bootstrap, VM startup and drivers',
                         native_execution_verified=False)
           Path('out').mkdir(exist_ok=True)
           Path('out/a31-entry-check.json').write_text(json.dumps(result, indent=2) + '\n')

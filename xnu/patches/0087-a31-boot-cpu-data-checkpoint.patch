@@ -1,0 +1,71 @@
+A31: stop after copying and verifying boot arguments and initial BootCpuData.
+Return through the verified stage21; stop before PE_init_platform/MMIO.
+
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -356,6 +356,9 @@
+ #if defined(A31)
+ 	sweet_early_mark(21, "image rebasing done; before boot args and CPU data");
+ #endif
++#if defined(A31)
++	const boot_args *a31_original_args = args;
++#endif
+ 	/* If kernel integrity is supported, use a constant copy of the boot args. */
+ 	const_boot_args = *args;
+ 	BootArgs = args = &const_boot_args;
+@@ -366,6 +369,23 @@
+ 	BootCpuData.rop_key = ml_default_rop_pid();
+ 	BootCpuData.jop_key = ml_default_jop_pid();
+ #endif /* defined(HAS_APPLE_PAC) */
++
++#if defined(A31)
++	const unsigned char *a31_original_bytes = (const unsigned char *)a31_original_args;
++	const unsigned char *a31_copied_bytes = (const unsigned char *)args;
++	for (unsigned int i = 0; i < sizeof(*args); ++i) {
++		if (a31_original_bytes[i] != a31_copied_bytes[i])
++			sweet_early_mark(0, "boot argument copy mismatch");
++	}
++	if (BootArgs != &const_boot_args || args != &const_boot_args ||
++	    BootCpuData.cpu_flags != 0 || BootCpuData.cpu_int_state != 0 ||
++	    BootCpuData.cpu_pending_ast != AST_NONE ||
++	    BootCpuData.rtcPop != EndOfAllTime ||
++	    BootCpuData.cpu_regmap_paddr != 0 ||
++	    BootCpuData.cpu_sleep_token != ARM_CPU_ON_SLEEP_PATH)
++		sweet_early_mark(0, "initial boot CPU data mismatch");
++	sweet_early_mark(22, "boot args copied; CPU data initialized; before platform");
++#endif
+ 
+ 	PE_init_platform(FALSE, args); /* Get platform expert set up */
+ 	sweet_early_mark(2, "PE_init_platform done");
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -146,7 +146,7 @@
+ #include <arm64/a31_entry_io.h>
+ #include <kern/misc_protos.h>
+ 
+-/* Stop after image rebasing, before boot-argument copy and CPU/VM startup. */
++/* Stop after boot-argument copy and initial CPU data, before platform startup. */
+ static unsigned int a31_panicking;
+ static unsigned int a31_entry_seen;
+ 
+@@ -214,12 +214,19 @@
+         a31_string("[A31-XNU] ENTRY-CHECK PASS\n");
+         return;
+     }
+-    if (stage == 21 && a31_entry_seen && current_el == 4 &&
++    if (stage == 21 && a31_entry_seen == 1 && current_el == 4 &&
+         (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 2;
+         a31_string("[A31-XNU] REBASE-CHECK PASS\n");
++        return;
++    }
++    if (stage == 22 && a31_entry_seen == 2 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_string("[A31-XNU] CPU-DATA-CHECK PASS\n");
+     } else {
+         a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
+         a31_string("[A31-XNU] REBASE-CHECK FAIL\n");
++        a31_string("[A31-XNU] CPU-DATA-CHECK FAIL\n");
+     }
+     a31_return();
+ }

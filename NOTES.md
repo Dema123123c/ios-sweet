@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- NEXT V19 BOOT-ARGS/CPU-DATA SOURCE PREPARED (native not tested yet).
+  Patch0087 lets stage21 return once, then runs original const_boot_args
+  copy and cpu_data_init. Byte-compares copied boot arguments to original
+  and checks initial CPU flags/int state/AST/rtcPop/regmap/sleep token.
+  Stage22 stops BEFORE PE_init_platform or later CPU/VM/MMIO. Original
+  cpu_data_init audited: memory stores/bzero, no platform-driver MMIO.
+  Collector/QEMU require ordered stage1/21/22 and CPU-DATA-CHECK PASS;
+  earlier first-C/rebase PASS cannot establish this new boundary. Kernel
+  build, actual-kernel QEMU and native test pending. Phone V18 in TWRP.
 - V18 NATIVE POST-REBASE PASS. Matching cf64132 pstore session contains
   ordered ENTRY/STACKS/TABLES/MMU, C stage1/ENTRY-CHECK PASS, C stage21
   image rebasing done/REBASE-CHECK PASS and RECOVERY REQUEST, EL1,

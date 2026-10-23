@@ -97,7 +97,7 @@ def build(out, cc='clang', qemu=False, entry_fault=False, payload_check=False, e
         metadata['payload_mode'] = 'prepare-only; no XNU jump'
         metadata['kernel_jump_enabled'] = False
     if entry_check_sha is not None:
-        metadata['kind'] = 'A31 XNU entry-check loader; stops at first arm_init checkpoint'
+        metadata['kind'] = 'A31 XNU checkpoint loader; stopping boundary belongs to the exact kernel payload'
         metadata['payload_mode'] = 'XNU entry checkpoint; stop before CPU/VM startup'
         metadata['kernel_jump_enabled'] = True
         metadata['expected_payload_sha256'] = entry_check_sha
