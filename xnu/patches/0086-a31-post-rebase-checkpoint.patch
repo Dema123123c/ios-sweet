@@ -1,0 +1,59 @@
+A31: allow the verified first C hook to return, then stop immediately after
+arm_setup_pre_sign and arm_slide_rebase_and_sign_image, before copying boot
+arguments, cpu_data_init or platform MMIO. Keep bootstrap log/reset mappings.
+
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -352,6 +352,9 @@
+ 
+ 	arm_slide_rebase_and_sign_image();
+ 
++#if defined(A31)
++	sweet_early_mark(21, "image rebasing done; before boot args and CPU data");
++#endif
+ 	/* If kernel integrity is supported, use a constant copy of the boot args. */
+ 	const_boot_args = *args;
+ 	BootArgs = args = &const_boot_args;
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -147,8 +147,9 @@
+ #include <arm64/a31_entry_io.h>
+ #include <kern/misc_protos.h>
+ 
+-/* Entry-only build: arm_init stops before rebasing, CPU and VM startup. */
++/* Stop after image rebasing, before boot-argument copy and CPU/VM startup. */
+ static unsigned int a31_panicking;
++static unsigned int a31_entry_seen;
+ 
+ void
+ sweet_early_putc(char character)
+@@ -202,6 +203,7 @@
+ {
+     uint64_t current_el, sctlr, frequency;
+     a31_string("[A31-XNU] C STAGE ");
++    if (stage >= 10) sweet_early_putc((char)('0' + stage / 10 % 10));
+     sweet_early_putc((char)('0' + stage % 10));
+     a31_string(": "); a31_string(label); sweet_early_putc('\n');
+     __asm__ volatile("mrs %0, CurrentEL" : "=r"(current_el));
+@@ -211,9 +213,19 @@
+     a31_hex("XNU_CURRENT_EL=", current_el >> 2);
+     a31_hex("XNU_SCTLR_EL1=", sctlr);
+     a31_hex("XNU_CNTFRQ=", frequency);
+-    if (stage == 1 && current_el == 4 && (sctlr & 1) && frequency == 13000000)
++    if (stage == 1 && !a31_entry_seen && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 1;
+         a31_string("[A31-XNU] ENTRY-CHECK PASS\n");
+-    else a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
++        return;
++    }
++    if (stage == 21 && a31_entry_seen && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_string("[A31-XNU] REBASE-CHECK PASS\n");
++    } else {
++        a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
++        a31_string("[A31-XNU] REBASE-CHECK FAIL\n");
++    }
+     a31_return();
+ }
+ 

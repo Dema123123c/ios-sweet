@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- NEXT POST-REBASE SOURCE PREPARED: patch0086 lets validated stage1 return
+  once, then stops at new stage21 immediately after arm_setup_pre_sign and
+  arm_slide_rebase_and_sign_image, BEFORE const_boot_args copy/cpu_data_init
+  or PE_init_platform. Original low log/reset mappings stay active. Unexpected
+  stage/state returns fail. No BRK/watchdog or platform-driver MMIO added.
+  Collector requires ordered stage1/entry PASS/stage21/rebase PASS/reset plus
+  EL1/MMU/13MHz in SAME session for xnu_rebase_pass; first-C alone is distinct.
+  65 Python tests and patch apply-check PASS. Full macOS build/QEMU/native
+  result PENDING. a31-bootstrap now accepts successful same-source kernel_run
+  with post_rebase=true; historical V11 controls keep exact old SHA gates.
+  Current phone still V17 in TWRP. Do not flash until new kernel and QEMU pass.
 - V17 NATIVE FIRST-C CHECKPOINT PASS, 2026-10-23. Matching pstore session
   6f23efccc9675f5073fad7202d3877927bf00e77 contains original ENTRY MMU-OFF,
   STACKS NEXT, TABLES READY, MMU ENABLE NEXT, C STAGE1 arm_init entered,

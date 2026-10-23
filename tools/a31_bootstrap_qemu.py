@@ -41,7 +41,7 @@ def bootstrap_checkpoint(kernel, target, post=False, c_entry=False, prologue=Fal
             'original_instruction': hex(original), 'replacement_instruction': '0xd4214620'}
 
 
-def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False):
+def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, rebase=False):
     out.mkdir(parents=True, exist_ok=False)
     checkpoint = None
     if trap or post or c_entry or prologue:
@@ -136,6 +136,15 @@ _start:
     required = ['ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                 'C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
                 'XNU_CURRENT_EL=0x0000000000000001', 'XNU_CNTFRQ=0x0000000000c65d40']
+    if rebase:
+        required.extend(['C STAGE 21: image rebasing done; before boot args and CPU data',
+                         'REBASE-CHECK PASS', 'RECOVERY REQUEST'])
+        ordered = ['C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
+                   'C STAGE 21: image rebasing done; before boot args and CPU data',
+                   'REBASE-CHECK PASS', 'RECOVERY REQUEST']
+        positions = [text.find(marker) for marker in ordered]
+        if any(p < 0 for p in positions) or positions != sorted(positions) or 'REBASE-CHECK FAIL' in text:
+            raise RuntimeError('post-rebase checkpoint missing, failed or out of order')
     sctlr = re.search(r'XNU_SCTLR_EL1=0x([0-9a-f]+)', text)
     if trap or post or c_entry or prologue:
         required = ['ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
@@ -159,7 +168,8 @@ if __name__ == '__main__':
     parser.add_argument('--post-mmu-trap', action='store_true')
     parser.add_argument('--c-entry-trap', action='store_true')
     parser.add_argument('--c-prologue-trap', action='store_true')
+    parser.add_argument('--post-rebase', action='store_true')
     options = parser.parse_args()
-    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap]) > 1:
+    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase]) > 1:
         parser.error('select only one checkpoint')
-    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap)
+    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase)

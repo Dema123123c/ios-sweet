@@ -29,7 +29,7 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
-        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
         entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
             '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
@@ -46,8 +46,21 @@ def inspect(data, expected_build):
             fields.get('ENTRY_TRAP_ELR') == '0x000000010148e100' and
             fields.get('ENTRY_TRAP_TARGET') == fields.get('ENTRY_TRAP_ELR') and
             fields.get('XNU_ENTRY_PA') == '0x000000010148c488')
+        rebase_markers = ['[A31-XNU] ENTRY MMU-OFF v1',
+                          '[A31-XNU] C STAGE 1: arm_init entered (MMU on)',
+                          '[A31-XNU] ENTRY-CHECK PASS',
+                          '[A31-XNU] C STAGE 21: image rebasing done; before boot args and CPU data',
+                          '[A31-XNU] REBASE-CHECK PASS', '[A31-XNU] RECOVERY REQUEST']
+        positions = [session.find(line + '\n') for line in rebase_markers]
+        rebase_pass = (entry_pass and not failure and not entry_failure and
+                       all(p >= 0 for p in positions) and positions == sorted(positions) and
+                       fields.get('XNU_CURRENT_EL') == '0x0000000000000001' and
+                       fields.get('XNU_CNTFRQ') == '0x0000000000c65d40' and
+                       bool(int(fields.get('XNU_SCTLR_EL1', '0'), 16) & 1))
         if entry_failure:
             status = 'fail'
+        elif rebase_pass:
+            status = 'xnu_rebase_pass'
         elif entry_pass and not failure:
             status = 'xnu_entry_pass'
         elif early_asm_pass:
@@ -58,6 +71,7 @@ def inspect(data, expected_build):
                       'failure': failure.group(1) if failure else None,
                       'physical_entry_trap_pass': entry_trap_pass, 'xnu_early_asm_pass': early_asm_pass,
                       'xnu_entry_pass': entry_pass and not failure and not entry_failure,
+                      'xnu_rebase_pass': rebase_pass,
                       'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
                       'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})

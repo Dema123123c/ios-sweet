@@ -2,6 +2,13 @@ name: a31-bootstrap
 on:
   workflow_dispatch:
     inputs:
+      kernel_run:
+        description: Successful xnu run to download (empty keeps historical V11)
+        default: ''
+      post_rebase:
+        description: Require the post-rebase checkpoint in the selected new kernel
+        type: boolean
+        default: false
       pre_mmu_trap:
         description: Stop the exact V11 kernel at the audited instruction before MMU enable
         type: boolean
@@ -31,21 +38,33 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends clang lld qemu-system-arm
-      - name: Fetch verified V11 kernel
+      - name: Fetch and verify selected kernel
         env:
           GH_TOKEN: ${{ github.token }}
+          KERNEL_RUN: ${{ inputs.kernel_run || '39952374717' }}
+          POST_REBASE: ${{ inputs.post_rebase && 'true' || 'false' }}
         run: |
-          gh run download 39952374717 --repo "$GITHUB_REPOSITORY" --name xnu-kernel --dir research/v11-kernel
+          gh run view "$KERNEL_RUN" --repo "$GITHUB_REPOSITORY" --json status,conclusion,headSha > research-run.json
+          gh run download "$KERNEL_RUN" --repo "$GITHUB_REPOSITORY" --name xnu-kernel --dir research/v11-kernel
           python3 - <<'PY'
-          import hashlib, json
+          import hashlib, json, os
           from pathlib import Path
           p = Path('research/v11-kernel')
           report = json.loads((p / 'a31-entry-check.json').read_text())
-          assert report['source'] == '6326258ab44dcf5f1da58086fbd55bdbab7c48e1'
-          assert hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest() == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
+          run = json.loads(Path('research-run.json').read_text())
+          assert run['status'] == 'completed' and run['conclusion'] == 'success'
+          assert report['source'] == run['headSha']
+          digest = hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest()
+          assert digest == report['sha256']
+          if os.environ['POST_REBASE'] == 'true':
+              assert report['source'] == os.environ['GITHUB_SHA']
+              assert report['kind'] == 'A31 XNU post-rebase checkpoint only'
+              assert report['reset_code']['machine_code_verified'] is True
+          else:
+              assert digest == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
           PY
       - name: Observe actual linked XNU bootstrap
-        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }}
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }} ${{ inputs.post_rebase && '--post-rebase' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
