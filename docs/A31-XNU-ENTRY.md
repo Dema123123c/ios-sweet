@@ -154,3 +154,14 @@ ENTRY-CHECK PASS. It stopped at RECOVERY FAILED because the Samsung SRAM
 header and reset firmware are absent from QEMU virt. This is not native
 Galaxy A31 C entry or an iOS boot. Native V11 remained on Samsung splash;
 its logs were unavailable after the manual recovery return.
+
+## Native pre-MMU checkpoint
+
+V13 on Galaxy A31 reached the audited instruction immediately before
+MSR SCTLR_EL1: original stack/table/TCR/TTBR/MAIR setup markers preceded
+intentional BRK#a31. Console-ramoops reports ESRf2000a31, ELR10148e4f8,
+SCTLR30d00800 with M=0 and BOOT RECOVERY REQUEST. The phone returned to
+TWRP automatically. This also verifies the physical stack-independent
+exception handler and software recovery path on hardware. It does not
+prove MMU enable, first C or iOS boot. Only pstore contains XNU markers;
+last_kmsg contains the matching shim/copy session.

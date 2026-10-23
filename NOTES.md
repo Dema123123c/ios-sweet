@@ -8,6 +8,19 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V13 ACTUAL NATIVE PRE-MMU CHECKPOINT PASS. Console-ramoops expected
+  ee57b95 session has ENTRY/STACKS/TABLES/MMU NEXT, exact BRK ESRf2000a31,
+  ELR10148e4f8, SCTLR30d00800 M=0, sourceSPfffffe00080b4000, slot0 and
+  BOOT RECOVERY REQUEST; auto TWRP. This validates original V11 bootstrap
+  through TCR/TTBR/MAIR/table setup AND its native physical fault/PSCI path.
+  Evidence research/a31-v13-pre-mmu-logs/checkpoint-result.json. Generic
+  collector fail is EXPECTED intentional BRK, exact control validated.
+  Only pstore has XNU records; last_kmsg has shim/copy records. C/MMU ON
+  not verified. V13 remains installed; original BOOT not restored.
+- NEXT POST-MMU control: same exact V11, replace MOVx0,#300000 at
+  VAfffffe000748e500/PA10148e500 with BRK, AFTER original MSR SCTLR and ISB,
+  BEFORE CPACR/first C/high-KVA return. Require same BRK with SCTLR.M=1.
+  Private research/a31-post-mmu-checkpoint; QEMU test pending. No WDT.
 - V13 PRE-MMU CONTROL WRITTEN/READ BACK/REBOOTED 2026-10-23 13:15:34 UTC,
   BOOT p35 only SHAb68414bc...7d56a4e; full readback matches, recovery/both
   vbmetas unchanged, unlocked/orange gate. Operation
