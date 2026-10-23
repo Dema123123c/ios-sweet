@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V14 POST-MMU CONTROL READY, not flashed at checkpoint. QEMU
+  CI39960414125 SUCCESS sourcec94a46a, exact BRK ELR10148e500/M=1.
+  Private kernel0a619941bc7f56a0875ba4893ffcdbf4dd18b2e32109ede0debba169755dcf47
+  is original V11 plus one audited instruction patch AFTER SCTLR/ISB.
+  Native sourcec94a46a40facfc3896513dec0a0a0629cf2bdb7e, Image269d2e7f...10e6b0a.
+  Payload9e3ecf12b97d84f739cdb829b8291cfaf4cf387f30e5a5fc146bf7387aee7679.
+  outputs/a31-post-mmu-v14/diagnostic/boot.img 32MiB SHA
+  acba87d112e32f6d110d87304ead0823ffeea810eedcc211f55f5a21f4a82d72.
+  Fresh currentV13/recovery/vbmeta/unlocked/pstore gates PASS, stock restore
+  included. Private prepare/test script research/a31-post-mmu-attempt.
+  Next BOOT-only test, collect expectedc94a46a, require exact ESRf2000a31,
+  ELR10148e500 and SCTLR.M=1 for this intentional control. No C or WDT.
 - V13 ACTUAL NATIVE PRE-MMU CHECKPOINT PASS. Console-ramoops expected
   ee57b95 session has ENTRY/STACKS/TABLES/MMU NEXT, exact BRK ESRf2000a31,
   ELR10148e4f8, SCTLR30d00800 M=0, sourceSPfffffe00080b4000, slot0 and
