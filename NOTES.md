@@ -8,6 +8,21 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V11 FULL KERNEL AND BOOT PACKAGE READY, not yet flashed at checkpoint.
+  Kernel CI39952374717 SUCCESS, source6326258, kernel17205432B SHA
+  3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50.
+  Linked entry markers and full build gates PASS. Package private
+  outputs/a31-boot-fault-v11/diagnostic/boot.img 33554432B SHA
+  6c50bb064115f4b33ba684337eec8a671bb73a152d896179f528c0f9cd5e6b17.
+  Native loader build cad95e14e4004a691c85529fcc635ccdef7c86a2, Image
+  SHA3f86a39caa0c586f383f4bc099de57a961e783e3bb296dec89c759d59d76cf7b.
+  Payload16603968B SHA4c8099dc84400bf343c6aaaada42a40c9b9f3975ddeec7f7b57a860a4454bc52.
+  Fresh unlocked/orange FDT, V10 BOOT, recovery/vbmetas and pstore gates
+  PASS. Static Linux EL0 payload validator on TWRP also PASS with fresh
+  FDT (heap simulated destination, not native XNU execution). Stock restore
+  retained. Ready BOOT-only test research/a31-boot-fault-attempt/test_v11.py;
+  collect expected cad95e1 immediately after automatic recovery return.
+  New physical exception handler / XNU C entry NOT hardware verified yet.
 - V11 SOURCE/EMULATOR VALIDATION COMPLETE; FULL KERNEL QUEUED.
   Source6326258ab44dcf5f1da58086fbd55bdbab7c48e1. Shim CI39952374500
   SUCCESS: 59 Python + C sanitizers + all prior entry controls, plus20
