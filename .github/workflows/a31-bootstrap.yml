@@ -1,0 +1,42 @@
+name: a31-bootstrap
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends clang lld qemu-system-arm
+      - name: Fetch verified V11 kernel
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 39952374717 --repo "$GITHUB_REPOSITORY" --name xnu-kernel --dir research/v11-kernel
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          p = Path('research/v11-kernel')
+          report = json.loads((p / 'a31-entry-check.json').read_text())
+          assert report['source'] == '6326258ab44dcf5f1da58086fbd55bdbab7c48e1'
+          assert hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest() == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
+          PY
+      - name: Observe actual linked XNU bootstrap
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: bootstrap-observation
+          path: |
+            research/bootstrap-observation/monitor.log
+            research/bootstrap-observation/serial.log
+            research/bootstrap-observation/pstore.bin
+            research/bootstrap-observation/pstore.txt
+            research/bootstrap-observation/report.json
+          if-no-files-found: warn

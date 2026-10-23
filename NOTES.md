@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V11 LOGS COLLECTED after USB replug: research/a31-v11-boot-fault-logs.
+  last_kmsg/sec_log/pstore contain NO matching cad95e1 session or XNU
+  markers. Manual-reset log loss known; this does NOT identify failure.
+  Phone TWRP, V11 BOOT remains installed, no further writes this turn.
+  Added a31-bootstrap workflow and tools/a31_bootstrap_qemu.py to observe
+  ACTUAL already-linked V11 kernel at its real >4GiB addresses in QEMU
+  virt with synthetic ADT. Captures registers and pstore after8s. This is
+  emulator observation, not phone PASS or a replacement TWRP. 59 Python,
+  syntax/diff checks PASS; actual emulation pending dispatch/run result.
 - V11 MANUAL TWRP RETURN confirmed by user, but ADB devices empty and
   wait-for-recovery timed out; NO V11 log capture exists yet. Asked USB
   replug without leaving TWRP. Do not reflash/reboot to fix missing USB.
