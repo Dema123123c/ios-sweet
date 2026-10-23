@@ -27,6 +27,17 @@ class A31LogTests(unittest.TestCase):
         platform_good = good.replace(b'[A31-XNU] RECOVERY REQUEST\n',
                                      platform + b'[A31-XNU] RECOVERY REQUEST\n')
         self.assertEqual(inspect(BEGIN + platform_good, BUILD)['status'], 'xnu_platform_pass')
+        bootstrap = (b'[A31-XNU] C STAGE 3: ml_parse_cpu_topology done\n'
+                     b'[A31-XNU] TOPOLOGY-CHECK PASS\n'
+                     b'[A31-XNU] C STAGE 4: cpu_bootstrap done\n'
+                     b'[A31-XNU] CPU-BOOTSTRAP-CHECK PASS\n')
+        bootstrap_good = platform_good.replace(b'[A31-XNU] RECOVERY REQUEST\n',
+                                               bootstrap + b'[A31-XNU] RECOVERY REQUEST\n')
+        self.assertEqual(inspect(BEGIN + bootstrap_good, BUILD)['status'], 'xnu_cpu_bootstrap_pass')
+        for bad in [platform_good, bootstrap + platform_good,
+                    bootstrap_good.replace(b'[A31-XNU] TOPOLOGY-CHECK PASS\n', b''),
+                    bootstrap_good + b'[A31-XNU] CPU-BOOTSTRAP-CHECK FAIL\n']:
+            self.assertFalse(inspect(BEGIN + bad, BUILD)['sessions'][0]['xnu_cpu_bootstrap_pass'])
         for bad in [good, platform_good.replace(cpu, b''),
                     platform + good, platform_good + b'[A31-XNU] PLATFORM-CHECK FAIL\n',
                     platform_good + b'[A31-XNU] BOOT EXCEPTION\n']:

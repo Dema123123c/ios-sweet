@@ -1,0 +1,56 @@
+A31: run generic event-stream, CPU topology and initial thread setup together.
+Validate single boot CPU and current-thread data, stop before rtclock startup.
+
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -492,6 +492,13 @@
+ 	 */
+ 	thread->machine.preemption_count = 0;
+ 	cpu_bootstrap();
++#if defined(A31)
++	if (master_cpu != 0 || ml_get_cpu_count() != 1 ||
++	    ml_get_cluster_count() != 1 || ml_get_boot_cpu_number() != 0 ||
++	    current_thread() != thread || thread->machine.CpuDatap != &BootCpuData ||
++	    thread->machine.preemption_count != 0)
++		sweet_early_mark(0, "bootstrap CPU/thread mismatch");
++#endif
+ 	sweet_early_mark(4, "cpu_bootstrap done");
+ 
+ 	rtclock_early_init();
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -146,7 +146,7 @@
+ #include <arm64/a31_entry_io.h>
+ #include <kern/misc_protos.h>
+ 
+-/* Stop after PE_init_platform(FALSE), before CPU topology/VM/driver startup. */
++/* Stop after topology and bootstrap thread setup, before rtclock/kernel startup. */
+ static unsigned int a31_panicking;
+ static unsigned int a31_entry_seen;
+ 
+@@ -228,12 +228,25 @@
+     }
+     if (stage == 2 && a31_entry_seen == 3 && current_el == 4 &&
+         (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 4;
+         a31_string("[A31-XNU] PLATFORM-CHECK PASS\n");
++        return;
++    }
++    if (stage == 3 && a31_entry_seen == 4 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 5;
++        a31_string("[A31-XNU] TOPOLOGY-CHECK PASS\n");
++        return;
++    }
++    if (stage == 4 && a31_entry_seen == 5 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_string("[A31-XNU] CPU-BOOTSTRAP-CHECK PASS\n");
+     } else {
+         a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
+         a31_string("[A31-XNU] REBASE-CHECK FAIL\n");
+         a31_string("[A31-XNU] CPU-DATA-CHECK FAIL\n");
+         a31_string("[A31-XNU] PLATFORM-CHECK FAIL\n");
++        a31_string("[A31-XNU] CPU-BOOTSTRAP-CHECK FAIL\n");
+     }
+     a31_return();
+ }

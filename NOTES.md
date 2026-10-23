@@ -8,6 +8,28 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V20 NATIVE EARLY PLATFORM PASS. Pstore matching loader0cfdae130e969f4f23d58fc2e502fbcdcc0f9479
+  contains ordered prior stages and C stage2/PLATFORM-CHECK PASS/reset,
+  EL1/SCTLR3454593d/13MHz, no exception/failure. User automatic TWRP.
+  Native kernel473dd625283d629be06a3e554218ff42410c2fc7 CI39972353910 SUCCESS,
+  17205504B SHAfd48e216d5a6eb3a0a8f8527d29027cfeb3ca0ff24631674adee61709e0a16e0.
+  Shim CI39972353888 SUCCESS. First QEMU39973521011 failed BEFORE kernel:
+  synthetic ADT accidentally kept Redmi compatible; test-only0cfdae1 fixed
+  identity. QEMU39973877942 SUCCESS against byte-identical473dd62 kernel.
+  BOOT36cf89f539bca7a5f5d09254020b19fe721a595227b6b0129f59a28e37f9bbf5
+  written/readback at14:57:38 UTC; recovery/vbmetas unchanged; V20 retained.
+  Imagea8826d2030b4d21b478fdf9337f686fdaf9eb7c288314fcab084184d3cb620ca,
+  payload6d9e83688f856f19d9751df9be2366bbf8c153cacfcedffb03c7aa5002cc984e.
+  Evidence research/a31-v20-platform-logs/report.json and a31-platform-attempt.
+  Unknown bus ratios fixed without invented frequency. No drivers/VM/iOS yet.
+- NEXT V21 GROUPED CPU BOOTSTRAP: patch0089 continues through stage2/3,
+  generic event stream/topology, static initial thread and cpu_bootstrap,
+  checks single CPU/cluster/boot CPU0/current thread/CpuDatap/preemption0,
+  stops at stage4 BEFORE rtclock/kernel_startup_bootstrap/VM/drivers.
+  No loader source change. Local actual-source cross-compiles PASS; new
+  synthetic ADT regression test checks actual platform/bootstrap fixture.
+  Full kernel/QEMU/native pending. User requests fewer tiny test iterations,
+  continuous progress and notes only10% account limits remain: be concise.
 - NEXT V20 EARLY PLATFORM source prepared: patch0088 handles unknown A31 bus
   rate as 0/1 ratios, avoiding zero division and legacy doubled-CPU overflow,
   without inventing bus frequency. Stage22 returns; original

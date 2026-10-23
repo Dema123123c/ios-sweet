@@ -41,7 +41,7 @@ def bootstrap_checkpoint(kernel, target, post=False, c_entry=False, prologue=Fal
             'original_instruction': hex(original), 'replacement_instruction': '0xd4214620'}
 
 
-def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, rebase=False, cpu_data=False, platform=False):
+def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, rebase=False, cpu_data=False, platform=False, bootstrap=False):
     out.mkdir(parents=True, exist_ok=False)
     checkpoint = None
     if trap or post or c_entry or prologue:
@@ -54,7 +54,7 @@ def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, reba
                     ('dram-base', 0, struct.pack('<Q', 0x100000000)),
                     ('dram-size', 0, struct.pack('<Q', 0x3fd00000))]
     root.children = [chosen]
-    if platform:
+    if platform or bootstrap:
         import mkadt
         root = mkadt.build(qemu=True)
         root.props = [(k, f, b'samsung,a31\0mediatek,MT6768\0' if k == 'compatible' else v)
@@ -151,24 +151,29 @@ _start:
     required = ['ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                 'C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
                 'XNU_CURRENT_EL=0x0000000000000001', 'XNU_CNTFRQ=0x0000000000c65d40']
-    if rebase or cpu_data or platform:
+    if rebase or cpu_data or platform or bootstrap:
         required.extend(['C STAGE 21: image rebasing done; before boot args and CPU data',
                          'REBASE-CHECK PASS', 'RECOVERY REQUEST'])
         ordered = ['C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
                    'C STAGE 21: image rebasing done; before boot args and CPU data',
                    'REBASE-CHECK PASS', 'RECOVERY REQUEST']
-        if cpu_data or platform:
+        if cpu_data or platform or bootstrap:
             extra = ['C STAGE 22: boot args copied; CPU data initialized; before platform',
                      'CPU-DATA-CHECK PASS']
             required.extend(extra)
             ordered[-1:-1] = extra
-        if platform:
+        if platform or bootstrap:
             extra = ['C STAGE 2: PE_init_platform done', 'PLATFORM-CHECK PASS']
+            required.extend(extra)
+            ordered[-1:-1] = extra
+        if bootstrap:
+            extra = ['C STAGE 3: ml_parse_cpu_topology done', 'TOPOLOGY-CHECK PASS',
+                     'C STAGE 4: cpu_bootstrap done', 'CPU-BOOTSTRAP-CHECK PASS']
             required.extend(extra)
             ordered[-1:-1] = extra
         positions = [text.find(marker) for marker in ordered]
         if (any(p < 0 for p in positions) or positions != sorted(positions) or
-                'REBASE-CHECK FAIL' in text or 'CPU-DATA-CHECK FAIL' in text or 'PLATFORM-CHECK FAIL' in text):
+                'REBASE-CHECK FAIL' in text or 'CPU-DATA-CHECK FAIL' in text or 'PLATFORM-CHECK FAIL' in text or 'CPU-BOOTSTRAP-CHECK FAIL' in text):
             raise RuntimeError('post-rebase checkpoint missing, failed or out of order')
     sctlr = re.search(r'XNU_SCTLR_EL1=0x([0-9a-f]+)', text)
     if trap or post or c_entry or prologue:
@@ -196,7 +201,8 @@ if __name__ == '__main__':
     parser.add_argument('--post-rebase', action='store_true')
     parser.add_argument('--cpu-data', action='store_true')
     parser.add_argument('--platform', action='store_true')
+    parser.add_argument('--cpu-bootstrap', action='store_true')
     options = parser.parse_args()
-    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform]) > 1:
+    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap]) > 1:
         parser.error('select only one checkpoint')
-    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform)
+    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap)
