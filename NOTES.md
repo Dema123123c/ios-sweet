@@ -8,6 +8,13 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V8 USER ACTION/RESULT STILL PENDING at turn handoff. The 55-second
+  wait-for-recovery collector timed out; a subsequent adb devices list
+  was empty. No V8 log folder/result collected, and no user screen report
+  yet. This does not establish an XNU hang/failure: boot-warning Power
+  acknowledgment is not confirmed. Do not repeat a BOOT write. Await the
+  pending question response; when TWRP is available, immediately collect
+  expected4deaf94 logs into research/a31-v8-entry-logs before any reboot.
 - V8 WRITTEN AND TEST STARTED 2026-10-23 10:31:24 UTC. BOOT p35 only,
   SHA59f8a8e0...6205357, full raw readback matched; TWRP and both vbmetas
   read back unchanged. Point-of-write FDT still unlocked/orange and memory/
