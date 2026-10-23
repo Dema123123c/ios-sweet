@@ -8,6 +8,20 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V19 NATIVE BOOT-ARGS/CPU-DATA PASS. Matching57397c0 pstore records ordered
+  C stage1/ENTRY-CHECK PASS, stage21/REBASE-CHECK PASS, stage22 boot args
+  copied/CPU data initialized/CPU-DATA-CHECK PASS and RECOVERY REQUEST.
+  EL1/SCTLR3454593d/CNTFRQ13000000; no FAIL/exception/reset-return.
+  User confirms automatic TWRP. Evidence research/a31-v19-cpu-data-logs/
+  report.json; operation/pending updated. Only pstore proves native XNU;
+  last_kmsg is loader-only. V19 BOOT ecffffc8...30e2ecdb retained in TWRP,
+  original restore available; no other partition writes. This proves byte-
+  verified 736-byte args copy and initial BootCpuData fields, NOT scheduling,
+  VM/platform drivers or iOS. NEXT: guard A31 unknown-bus clock ratios before
+  advancing to PE_init_platform(FALSE), validate actual ADT/13MHz clock.
+  pe_identify_machine divides by missing bus frequency (C UB, not a proven
+  native crash; AArch64 division alone need not trap). Also ensure subsequent
+  CPU/VM/serial stages cannot touch inherited Qualcomm hardware mappings.
 - V19 NATIVE TEST STARTED 2026-10-23 14:38:11 UTC, result pending.
   Source/session57397c01982c9c2ee3396f182b5b050940567b57. Kernel
   CI39969205795 SUCCESS (17205504B SHA

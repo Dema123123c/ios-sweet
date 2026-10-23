@@ -42,7 +42,13 @@ register-map address and sleep token. Stage 22 emits CPU-DATA-CHECK PASS
 only in the validated stage sequence, then uses the existing recovery reset.
 It does not initialize CPU topology, scheduling, VM or phone drivers.
 The collector requires the ordered prior stages and this new completion
-within one matching session. Native V19 results are pending.
+within one matching session. V19 passed on the actual A31: matching
+`57397c0` pstore records all three ordered C stages, CPU-DATA-CHECK PASS
+and RECOVERY REQUEST with EL1, SCTLR `0x3454593d`, CNTFRQ 13 MHz and no
+failure/exception/reset-return markers. The user confirmed automatic TWRP.
+Only pstore establishes XNU completion; last_kmsg has loader records.
+Private evidence is `research/a31-v19-cpu-data-logs/report.json`.
+V19 remains in BOOT with the original restore available.
 
 Kernel CI39969205795, shim CI39969205881 and actual-kernel QEMU
 CI39971077759 passed at `57397c01982c9c2ee3396f182b5b050940567b57`.
