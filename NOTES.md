@@ -8,6 +8,31 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V8 ENTRY-CHECK PACKAGE READY, not written at this checkpoint. Kernel
+  source5a9faea8de0925469caadade25cc5aa3ce5227bc, macOS CI39938138036
+  SUCCESS, kernel17205128B SHA405fed8ecc1e0753c85d4587e45d0d3814638bcbab5b70f02e50c3a558d674fc.
+  Linked markers and plain-arm64 format verified by CI and locally.
+  Loader source4deaf9463f212fcc27a606e54bc90feff000642e, CI39938685487
+  SUCCESS: 55 Python, three C ASan/UBSan suites, EL1/EL2 core/early-fault/
+  prepare checks and actual executable receiver ABI handoff. Private CI
+  folders research/a31-xnu-entry-ci-5a9faea/kernel and a31-entry-loader-ci-4deaf94.
+  Private package outputs/a31-xnu-entry-v8/diagnostic/boot.img 33554432B,
+  SHA59f8a8e07f1add14fb86651efd5263f1a1e52b09d6a9cfb4e7875631f6205357.
+  Native entry loader locally cross-compiled from clean4deaf94, Image SHA
+  34df0987bc4e73937d327d858671844afe3cfdba3b28e4a216d6f4560349b5d2,
+  bound payload SHA8d60696d9394a073bd911ca301f32b696ffa949c12dbac573ddf5773b36c030d
+  (16603664B), entry PA10148c488, args1024cc000, top1024d0000. A31 ADT
+  properties match V7; seed retained for exact comparison/serialization.
+  Actual new payload+live FDT C validation/heap copy tests PASS on A31 EL0;
+  this is not native kernel entry. Fresh capture twice-read V7/TWRP/vbmetas/
+  DTBO unchanged, unlocked/orange, IOMEM extent and pstore validated.
+  Evidence research/a31-v7-after-success-capture and a31-xnu-entry-attempt.
+  Original BOOT restore SHAaf9ef426...176f1 retained in package. About to
+  test only BOOT under ongoing experimental authorization. No native V8
+  result yet. Kernel intentionally returns at first arm_init checkpoint;
+  it never reaches final MMU mapping, drivers or userland. Earlier faults
+  can still halt and require manual TWRP fallback. No Data/TEE1/vbmeta or
+  bootloader write authorized/performed by this test.
 - ENTRY LOADER IMPLEMENTED, untested on native hardware. Exact payload
   SHA-256 compiled into explicit entry mode; packaging checks that SHA,
   compiled binding and checkpoint markers inside file-backed segments.
