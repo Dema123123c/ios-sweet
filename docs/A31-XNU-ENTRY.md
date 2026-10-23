@@ -96,3 +96,13 @@ It still does not reach C or enable the kernel MMU. Evidence requires the
 actual XNU physical marker and exact checkpoint ELR in one loader session.
 A separate synthetic QEMU receiver exercises the same nonzero offset,
 with its own fixture label; it is not presented as an XNU boot.
+
+V10 passed on hardware. The matching console-ramoops session contains
+original `[A31-XNU] ENTRY MMU-OFF v1`, exact checkpoint ELR10148e100,
+ESRf2000a31 and diagnostic/core/copy PASS; the user observed automatic
+TWRP return. This verifies execution of original XNU early assembler and
+its physical log routine, stopping before VBAR/SP changes and MMU setup.
+last_kmsg contains the matching shim/trap result but omits the XNU marker;
+only pstore supplies full original-assembler evidence. C entry and the
+kernel's own MMU initialization are not yet verified. The next task is a
+stack-independent early exception log/return path across those transitions.

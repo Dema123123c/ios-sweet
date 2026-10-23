@@ -8,6 +8,25 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V10 FIRST VERIFIED ORIGINAL XNU EARLY ASSEMBLER EXECUTION on A31.
+  User observed automatic TWRP return. Source d6add85 session recovered in
+  research/a31-v10-early-brk-logs. Console-ramoops contains actual original
+  [A31-XNU] ENTRY MMU-OFF v1 marker, ELR10148e100 (entry+1c78), ESRf2000a31,
+  original checkpoint opcodef0ffffe0, copy/core/BRK PASS; collector status
+  xnu_early_asm_pass=true. last_kmsg contains matching core/trap PASS but
+  omits the XNU marker (kernel logs directly to pstore, shim also Samsung).
+  Thus only pstore establishes original marker/assembler result; do not
+  describe two independent full XNU PASS logs. Original entry branch,
+  OSLAR/DAIF, boot-argument register setup and entry_record returned before
+  trap; original XNU executed. This does NOT prove C, MMU init or iOS boot.
+  Operation research/a31-early-brk-attempt/operation.json updated. V10 BOOT
+  remains installed SHA65ba8cb2...9409bf; phone is TWRP, original BOOT not
+  restored. Recovery/vbmetas last checked unchanged during write.
+  NEXT: instrument original XNU low-exception path with stack-independent
+  ESR/ELR/FAR logging and software recovery return; preserve logs across
+  the VBAR/SP/MMU transition. V8 stopped somewhere AFTER the now-confirmed
+  early checkpoint, or evidence was lost; exact fault still unlocated.
+  Do not blindly repeat V8 or claim a complete A31/iOS port.
 - V10 WRITTEN/READ BACK/REBOOTED 2026-10-23 12:02:30 UTC, BOOT p35
   only. SHA65ba8cb2...9409bf, full raw readback matches; recovery/both
   vbmetas unchanged and fresh unlocked/orange/RAM/pstore gates PASS.
