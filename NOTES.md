@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V15 ACTUAL NATIVE HIGH-KVA arm_init ENTRY CHECKPOINT PASS. Pstore
+  expectedd569095 has exact ESRf2000a31/ELRfffffe0007ad4fe8/M=1,
+  stage markers and software recovery return. Evidence
+  research/a31-v15-c-entry-logs/checkpoint-result.json. Verifies CPACR,
+  TPIDR/MIDR/RET and high-KVA instruction fetch BEFORE C prologue. NOT
+  stack stores or diagnostic C call. V15 BOOTf5ff478b...4941725f currently
+  installed; user automatic TWRP, original BOOT not restored.
+- NEXT C PROLOGUE checkpoint: exact V11 plus BRK replacing audited
+  BL sweet_early_mark opcode97e6bf3a at VAfffffe0007ad5030/PA101ad5030.
+  Tests arm_init's original stack stores/GOT guard load/zero init, stops
+  before diagnostic function. Native expected SPfffffe00080b3f30.
+  Private research/a31-c-prologue-checkpoint; QEMU control pending.
 - V15 HIGH-KVA ENTRY CONTROL READY, not flashed at checkpoint. QEMU
   CI39961073177 SUCCESS, exact highVA BRKfffffe0007ad4fe8/M=1.
   Patched kernel9fe0365a8c37678498263c4d1cffa301fb0230abe58ef1c017c8ddc537e3d8d0

@@ -14,6 +14,10 @@ on:
         description: Stop the exact V11 kernel at high-KVA arm_init entry before its prologue
         type: boolean
         default: false
+      c_prologue_trap:
+        description: Stop the exact V11 kernel after arm_init stack prologue and before diagnostic call
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -41,7 +45,7 @@ jobs:
           assert hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest() == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
           PY
       - name: Observe actual linked XNU bootstrap
-        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }}
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

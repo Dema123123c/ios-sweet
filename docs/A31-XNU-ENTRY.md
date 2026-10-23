@@ -172,3 +172,8 @@ SCTLR3454593d has MMU, data cache and instruction cache enabled; exact
 ESRf2000a31/ELR10148e500 and automatic software return confirm the
 controlled trap. This proves that transition and physical instruction
 fetch, but not the high-KVA arm_init entry or C stack operations.
+
+V15 reached the actual high-KVA arm_init entry on A31: exact intentional
+BRK at ELRfffffe0007ad4fe8 with SCTLR3454593d. This verifies the high-KVA
+branch after CPACR/TPIDR/MIDR setup, before the original function prologue
+or stack stores. First diagnostic C-call success remains unverified.

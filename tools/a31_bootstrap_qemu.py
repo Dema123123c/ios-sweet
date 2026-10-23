@@ -14,14 +14,14 @@ import mkpayload
 from a31_payload import build, inspect_payload
 
 
-def bootstrap_checkpoint(kernel, target, post=False, c_entry=False):
-    if post and c_entry:
+def bootstrap_checkpoint(kernel, target, post=False, c_entry=False, prologue=False):
+    if sum([post, c_entry, prologue]) > 1:
         raise ValueError('select one audited checkpoint')
     data = bytearray(kernel.read_bytes())
     if hashlib.sha256(data).hexdigest() != '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50':
         raise ValueError('bootstrap checkpoint requires exact verified V11 kernel')
-    address = 0xfffffe0007ad4fe8 if c_entry else 0xfffffe000748e500 if post else 0xfffffe000748e4f8
-    original = 0xd10343ff if c_entry else 0xd2a00600 if post else 0xd5181000
+    address = 0xfffffe0007ad5030 if prologue else 0xfffffe0007ad4fe8 if c_entry else 0xfffffe000748e500 if post else 0xfffffe000748e4f8
+    original = 0x97e6bf3a if prologue else 0xd10343ff if c_entry else 0xd2a00600 if post else 0xd5181000
     segments = [s for s in mkpayload.parse_macho(data)['segs']
                 if s['vmaddr'] <= address < s['vmaddr'] + s['filesize']]
     if len(segments) != 1:
@@ -36,17 +36,17 @@ def bootstrap_checkpoint(kernel, target, post=False, c_entry=False):
     target.write_bytes(data)
     return {'source_sha256': hashlib.sha256(kernel.read_bytes()).hexdigest(),
             'patched_sha256': hashlib.sha256(data).hexdigest(), 'file_offset': offset,
-            'virtual_address': hex(address), 'physical_address': '0x101ad4fe8' if c_entry else '0x10148e500' if post else '0x10148e4f8',
-            'phase': 'high-KVA arm_init entry before prologue' if c_entry else 'after MMU enable and ISB' if post else 'before MMU enable',
+            'virtual_address': hex(address), 'physical_address': '0x101ad5030' if prologue else '0x101ad4fe8' if c_entry else '0x10148e500' if post else '0x10148e4f8',
+            'phase': 'arm_init prologue before diagnostic call' if prologue else 'high-KVA arm_init entry before prologue' if c_entry else 'after MMU enable and ISB' if post else 'before MMU enable',
             'original_instruction': hex(original), 'replacement_instruction': '0xd4214620'}
 
 
-def run(kernel, out, trap=False, post=False, c_entry=False):
+def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False):
     out.mkdir(parents=True, exist_ok=False)
     checkpoint = None
-    if trap or post or c_entry:
+    if trap or post or c_entry or prologue:
         patched = out / 'checkpoint.kernel'
-        checkpoint = bootstrap_checkpoint(kernel, patched, post, c_entry)
+        checkpoint = bootstrap_checkpoint(kernel, patched, post, c_entry, prologue)
         kernel = patched
     root, chosen = adt.Node(), adt.Node()
     root.props = [('name', 0, b'device-tree\0'), ('compatible', 0, b'samsung,a31\0')]
@@ -137,13 +137,13 @@ _start:
                 'C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
                 'XNU_CURRENT_EL=0x0000000000000001', 'XNU_CNTFRQ=0x0000000000c65d40']
     sctlr = re.search(r'XNU_SCTLR_EL1=0x([0-9a-f]+)', text)
-    if trap or post or c_entry:
+    if trap or post or c_entry or prologue:
         required = ['ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                     'BOOT EXCEPTION', 'XNU_FAULT_ESR=0x00000000f2000a31',
-                    'XNU_FAULT_ELR=' + ('0xfffffe0007ad4fe8' if c_entry else '0x000000010148e500' if post else '0x000000010148e4f8')]
+                    'XNU_FAULT_ELR=' + ('0xfffffe0007ad5030' if prologue else '0xfffffe0007ad4fe8' if c_entry else '0x000000010148e500' if post else '0x000000010148e4f8')]
         sctlr = re.search(r'XNU_FAULT_SCTLR=0x([0-9a-f]+)', text)
         if (any(marker not in text for marker in required) or 'ENTRY-CHECK PASS' in text or
-                not sctlr or bool(int(sctlr.group(1), 16) & 1) != (post or c_entry)):
+                not sctlr or bool(int(sctlr.group(1), 16) & 1) != (post or c_entry or prologue)):
             raise RuntimeError('audited bootstrap checkpoint did not trap with expected MMU state')
         return
     if (any(marker not in text for marker in required) or 'BOOT EXCEPTION' in text or
@@ -158,7 +158,8 @@ if __name__ == '__main__':
     parser.add_argument('--pre-mmu-trap', action='store_true')
     parser.add_argument('--post-mmu-trap', action='store_true')
     parser.add_argument('--c-entry-trap', action='store_true')
+    parser.add_argument('--c-prologue-trap', action='store_true')
     options = parser.parse_args()
-    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap]) > 1:
+    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap]) > 1:
         parser.error('select only one checkpoint')
-    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap)
+    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap)
