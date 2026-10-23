@@ -8,6 +8,24 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V6 BASELINE RECHECK PASSED NATIVELY: sourcea678d2c expected complete
+  PASS recovered in BOTH last_kmsg/pstore, MMU16K and timer3/other0,
+  PSCI1.1, auto TWRP. Evidence research/a31-v6-reference-recheck-logs.
+  V6 BOOT6900f17b...eb23bd6 currently installed after verified write
+  2026-10-23 13:09:12 UTC; recovery/vbmetas unchanged. Confirms software
+  return/log capture works now. Both V12 attempts had NO expected record,
+  absent pstore and reboot_longkey/800. Watchdog retention NOT usable or
+  verified; do not add watchdog to XNU handoff based on auto return alone.
+- NEXT PRE-MMU CHECKPOINT: exact V11 kernel3486ac51 only, replace audited
+  MSR SCTLR_EL1,x0 opcode d5181000 at VAfffffe000748e4f8/PA10148e4f8
+  (file4760824) with BRK#a31 d4214620 in separate private COPY, never
+  overwrite original. Patched kernel SHA703365504da841b9110d1d43f73d3355995e47f675b9b7f572a487f37089b97e.
+  Uses V11 physical fault handler/software PSCI, watchdog OFF. Can prove
+  original vectors/stack/table/TCR/TTBR setup before MMU, not C or OS boot.
+  Helper tools/a31_bootstrap_qemu.py enforces source hash + exact opcode.
+  QEMU workflow optional pre_mmu_trap checks exact ESR/ELR and SCTLR.M=0;
+  code/local60 Python PASS, emulator checkpoint run pending dispatch.
+  Private kernel/checkpoint.json research/a31-pre-mmu-checkpoint.
 - V12 first return: user confirms ONLY short Power, auto TWRP. Captures
   research/a31-v12-watchdog-control-logs have NO expected session, pstore
   absent. Bootloader reports wdt_status800, reboot_longkey, PARAM_REBOOT_MODE4,

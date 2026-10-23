@@ -1,6 +1,11 @@
 name: a31-bootstrap
 on:
   workflow_dispatch:
+    inputs:
+      pre_mmu_trap:
+        description: Stop the exact V11 kernel at the audited instruction before MMU enable
+        type: boolean
+        default: false
 permissions:
   contents: read
   actions: read
@@ -28,7 +33,7 @@ jobs:
           assert hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest() == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
           PY
       - name: Observe actual linked XNU bootstrap
-        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:

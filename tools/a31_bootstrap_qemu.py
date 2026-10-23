@@ -10,11 +10,40 @@ import subprocess
 import time
 
 import adt
+import mkpayload
 from a31_payload import build, inspect_payload
 
 
-def run(kernel, out):
+def pre_mmu_checkpoint(kernel, target):
+    data = bytearray(kernel.read_bytes())
+    if hashlib.sha256(data).hexdigest() != '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50':
+        raise ValueError('pre-MMU checkpoint requires exact verified V11 kernel')
+    address = 0xfffffe000748e4f8
+    segments = [s for s in mkpayload.parse_macho(data)['segs']
+                if s['vmaddr'] <= address < s['vmaddr'] + s['filesize']]
+    if len(segments) != 1:
+        raise ValueError('checkpoint not in one file-backed segment')
+    segment = segments[0]
+    offset = segment['fileoff'] + address - segment['vmaddr']
+    if struct.unpack_from('<I', data, offset)[0] != 0xd5181000:
+        raise ValueError('checkpoint must replace audited MSR SCTLR_EL1,x0')
+    struct.pack_into('<I', data, offset, 0xd4214620)
+    if target.exists():
+        raise FileExistsError(target)
+    target.write_bytes(data)
+    return {'source_sha256': hashlib.sha256(kernel.read_bytes()).hexdigest(),
+            'patched_sha256': hashlib.sha256(data).hexdigest(), 'file_offset': offset,
+            'virtual_address': hex(address), 'physical_address': '0x10148e4f8',
+            'original_instruction': '0xd5181000', 'replacement_instruction': '0xd4214620'}
+
+
+def run(kernel, out, trap=False):
     out.mkdir(parents=True, exist_ok=False)
+    checkpoint = None
+    if trap:
+        patched = out / 'pre-mmu.kernel'
+        checkpoint = pre_mmu_checkpoint(kernel, patched)
+        kernel = patched
     root, chosen = adt.Node(), adt.Node()
     root.props = [('name', 0, b'device-tree\0'), ('compatible', 0, b'samsung,a31\0')]
     chosen.props = [('name', 0, b'chosen\0'),
@@ -93,6 +122,7 @@ _start:
               'kernel_sha256': hashlib.sha256(kernel.read_bytes()).hexdigest(),
               'payload': checked, 'qemu_returncode': process.returncode,
               'wrapper_branches_to_actual_kernel': True,
+              'pre_mmu_checkpoint': checkpoint,
               'markers': {marker: marker in text for marker in [
                   'ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                   'BOOT EXCEPTION', 'ENTRY-CHECK PASS', 'RECOVERY REQUEST']}}
@@ -103,6 +133,15 @@ _start:
                 'C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
                 'XNU_CURRENT_EL=0x0000000000000001', 'XNU_CNTFRQ=0x0000000000c65d40']
     sctlr = re.search(r'XNU_SCTLR_EL1=0x([0-9a-f]+)', text)
+    if trap:
+        required = ['ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
+                    'BOOT EXCEPTION', 'XNU_FAULT_ESR=0x00000000f2000a31',
+                    'XNU_FAULT_ELR=0x000000010148e4f8']
+        sctlr = re.search(r'XNU_FAULT_SCTLR=0x([0-9a-f]+)', text)
+        if (any(marker not in text for marker in required) or 'ENTRY-CHECK PASS' in text or
+                not sctlr or int(sctlr.group(1), 16) & 1):
+            raise RuntimeError('audited pre-MMU checkpoint did not trap before enabling translation')
+        return
     if (any(marker not in text for marker in required) or 'BOOT EXCEPTION' in text or
             not sctlr or not int(sctlr.group(1), 16) & 1):
         raise RuntimeError('actual linked kernel did not pass the emulated first-C checkpoint')
@@ -112,5 +151,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--kernel', required=True, type=Path)
     parser.add_argument('--out', required=True, type=Path)
+    parser.add_argument('--pre-mmu-trap', action='store_true')
     options = parser.parse_args()
-    run(options.kernel.resolve(), options.out.resolve())
+    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap)
