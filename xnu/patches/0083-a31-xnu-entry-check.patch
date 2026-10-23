@@ -1,0 +1,289 @@
+A31: entry checkpoint only. Logs at MMU-off entry and first C instruction,
+then requests recovery before CPU/VM startup. Does not boot iOS.
+
+--- a/osfmk/arm64/sweet_early.h
++++ b/osfmk/arm64/sweet_early.h
+@@ -6,7 +6,7 @@
+ #include <stdarg.h>
+ #include <stdint.h>
+ 
+-#if defined(SWEET) && !defined(A31)
++#if defined(SWEET)
+ void sweet_early_mark(unsigned int stage, const char *label);
+ void sweet_early_putc(char c);
+ void sweet_early_panic(const char *fmt, va_list *args);
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -141,3 +141,93 @@
+ 	__asm__ volatile("dsb sy" ::: "memory");
+ }
+ #endif /* SWEET */
++
++#if defined(A31)
++#include <arm64/a31_entry_io.h>
++#include <kern/misc_protos.h>
++
++/* Entry-only build: arm_init stops before rebasing, CPU and VM startup. */
++static unsigned int a31_panicking;
++
++void
++sweet_early_putc(char character)
++{
++    (void)a31_xnu_ring_putc((void *)(uintptr_t)0x4d05f000, 0x40000, character);
++    __asm__ volatile("dsb sy" ::: "memory");
++}
++
++static void
++a31_string(const char *text)
++{
++    while (*text) sweet_early_putc(*text++);
++}
++
++static void
++a31_hex(const char *name, uint64_t value)
++{
++    static const char digits[] = "0123456789abcdef";
++    a31_string(name);
++    a31_string("0x");
++    for (int shift = 60; shift >= 0; shift -= 4)
++        sweet_early_putc(digits[(value >> shift) & 15]);
++    sweet_early_putc('\n');
++}
++
++static __attribute__((noreturn)) void
++a31_return(void)
++{
++    __asm__ volatile("msr daifset, #15" ::: "memory");
++    a31_string("[A31-XNU] RECOVERY REQUEST\n");
++    if (a31_xnu_request_recovery((void *)(uintptr_t)0x10dc00, 0x800)) {
++        register uint64_t function __asm__("x0") = 0x84000009;
++        register uint64_t arg1 __asm__("x1") = 0;
++        register uint64_t arg2 __asm__("x2") = 0;
++        register uint64_t arg3 __asm__("x3") = 0;
++        __asm__ volatile("dsb sy; isb; smc #0"
++            : "+r"(function), "+r"(arg1), "+r"(arg2), "+r"(arg3)
++            : : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11",
++                "x12", "x13", "x14", "x15", "x16", "x17", "memory");
++        a31_hex("PSCI_RESET_RETURN=", function);
++    }
++    a31_string("[A31-XNU] RECOVERY FAILED\n");
++    for (;;) __asm__ volatile("wfe");
++}
++
++void
++sweet_early_mark(unsigned int stage, const char *label)
++{
++    uint64_t current_el, sctlr, frequency;
++    a31_string("[A31-XNU] C STAGE ");
++    sweet_early_putc((char)('0' + stage % 10));
++    a31_string(": "); a31_string(label); sweet_early_putc('\n');
++    __asm__ volatile("mrs %0, CurrentEL" : "=r"(current_el));
++    __asm__ volatile("mrs %0, SCTLR_EL1" : "=r"(sctlr));
++    __asm__ volatile("mrs %0, CNTFRQ_EL0" : "=r"(frequency));
++    a31_hex("XNU_CURRENT_EL=", current_el >> 2);
++    a31_hex("XNU_SCTLR_EL1=", sctlr);
++    a31_hex("XNU_CNTFRQ=", frequency);
++    if (stage == 1 && current_el == 4 && (sctlr & 1) && frequency == 13000000)
++        a31_string("[A31-XNU] ENTRY-CHECK PASS\n");
++    else a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
++    a31_return();
++}
++
++void
++sweet_early_panic(const char *format, va_list *arguments)
++{
++    if (a31_panicking) a31_return();
++    a31_panicking = 1;
++    a31_string("[A31-XNU] PANIC: ");
++    if (arguments) {
++        va_list copy;
++        va_copy(copy, *arguments);
++        _doprnt(format, &copy, sweet_early_putc, 16);
++        va_end(copy);
++    } else a31_string(format);
++    sweet_early_putc('\n');
++    a31_return();
++}
++
++void sweet_early_relocate(uint64_t base) { (void)base; a31_return(); }
++void sweet_early_disable(void) { a31_return(); }
++#endif /* A31: deliberately stops before final TTBR1/TTBR0 teardown. */
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -513,6 +513,10 @@
+ 	mov		x20, x0
+ 	mov		x21, #0
+ 
++#if defined(A31)
++	bl		EXT(a31_xnu_entry_record)
++#endif
++
+ #if defined(SWEET) && !defined(A31)
+ 	/* Stage 0: white 64x32 band, no stack or page tables needed. */
+ 	MOV64	x0, (0x9c000000 + 2368 * 4320)
+@@ -693,6 +697,64 @@
+ 	lsr		x12, x12, #(ARM_TT_L2_SHIFT)
+ 	add		x13, x25, #(2 * PGBYTES)
+ 	str		x11, [x13, x12, lsl #TTE_SHIFT]
++#endif
++
++#if defined(A31)
++    /* Use two fresh L3 pages; map only the log pages and one SRAM page.
++     * A31's managed RAM lies above 4GiB, in the SAME L1 slot as these
++     * low addresses. Replacing that L1 descriptor would destroy the RAM map.
++     * x2 is the last allocated page. Fixed policy uses six pages within BOOTSTRAP_TABLE_SIZE.
++     */
++    ldr x9, [x25]
++    and x9, x9, #(ARM_TTE_TABLE_MASK)
++    MOV64 x10, 0x4d05c000
++    and x11, x10, #(ARM_TT_L2_INDEX_MASK)
++    lsr x11, x11, #(ARM_TT_L2_SHIFT)
++    ldr x12, [x9, x11, lsl #TTE_SHIFT]
++    cbnz x12, La31_map_bad
++    add x2, x2, PGBYTES
++    mov x12, x2
++    mov x13, #(TTE_PGENTRIES)
++La31_clear_log_table:
++    str xzr, [x12], #8
++    subs x13, x13, #1
++    b.ne La31_clear_log_table
++    MOV64 x12, (ARM_TTE_BOOT_TABLE | ARM_TTE_TABLE_PXN | ARM_TTE_TABLE_XN)
++    orr x12, x12, x2
++    str x12, [x9, x11, lsl #TTE_SHIFT]
++    MOV64 x12, (ARM_PTE_TYPE_VALID | ARM_PTE_SH(SH_OUTER_MEMORY) | ARM_PTE_ATTRINDX(CACHE_ATTRINDX_WRITECOMB) | ARM_PTE_AF | ARM_PTE_PNX | ARM_PTE_NX)
++    mov x13, #17
++La31_map_log_pages:
++    and x11, x10, #(ARM_TT_L3_INDEX_MASK)
++    lsr x11, x11, #(ARM_TT_L3_SHIFT)
++    orr x14, x10, x12
++    str x14, [x2, x11, lsl #TTE_SHIFT]
++    add x10, x10, PGBYTES
++    subs x13, x13, #1
++    b.ne La31_map_log_pages
++    ldr x12, [x9]
++    cbnz x12, La31_map_bad
++    add x2, x2, PGBYTES
++    mov x12, x2
++    mov x13, #(TTE_PGENTRIES)
++La31_clear_sram_table:
++    str xzr, [x12], #8
++    subs x13, x13, #1
++    b.ne La31_clear_sram_table
++    MOV64 x12, (ARM_TTE_BOOT_TABLE | ARM_TTE_TABLE_PXN | ARM_TTE_TABLE_XN)
++    orr x12, x12, x2
++    str x12, [x9]
++    MOV64 x10, 0x10c000
++    and x11, x10, #(ARM_TT_L3_INDEX_MASK)
++    lsr x11, x11, #(ARM_TT_L3_SHIFT)
++    MOV64 x12, (ARM_PTE_TYPE_VALID | ARM_PTE_SH(SH_OUTER_MEMORY) | ARM_PTE_ATTRINDX(CACHE_ATTRINDX_DISABLE) | ARM_PTE_AF | ARM_PTE_PNX | ARM_PTE_NX)
++    orr x12, x12, x10
++    str x12, [x2, x11, lsl #TTE_SHIFT]
++    b La31_map_done
++La31_map_bad:
++    /* No usable physical stack here; stop on a conflicting mapping. */
++    brk #0xa31
++La31_map_done:
+ #endif
+ 
+ 	/* Ensure TTEs are visible */
+@@ -962,3 +1024,57 @@
+ //#include	"globals_asm.h"
+ 
+ /* vim: set ts=4: */
++
++#if defined(A31)
++/* MMU-off entry marker, no stack or global data access. Only x0,x8-x17
++ * and LR are scratch; boot arguments remain in x20. The ring must already
++ * have been initialized by the independently validated native loader.
++ */
++    .text
++    .align 2
++    .globl EXT(a31_xnu_entry_record)
++LEXT(a31_xnu_entry_record)
++    mov x17, lr
++    adr x8, La31_entry_message
++La31_entry_next:
++    ldrb w0, [x8], #1
++    cbz w0, La31_entry_done
++    bl EXT(a31_xnu_phys_putc)
++    b La31_entry_next
++La31_entry_done:
++    dsb sy
++    br x17
++    .globl EXT(a31_xnu_phys_putc)
++LEXT(a31_xnu_phys_putc)
++    MOV64 x9, 0x4d05f000
++    ldr w10, [x9]
++    MOV64 x11, 0x43474244
++    cmp w10, w11
++    b.ne La31_putc_done
++    ldr w10, [x9, #4]
++    ldr w12, [x9, #8]
++    MOV64 x11, 0x3fff4
++    cmp w10, w11
++    b.hs La31_putc_done
++    cmp w12, w11
++    b.hi La31_putc_done
++    b.eq La31_ring_valid
++    cmp w10, w12
++    b.ne La31_putc_done
++La31_ring_valid:
++    add x13, x9, #12
++    strb w0, [x13, x10]
++    add w10, w10, #1
++    cmp w10, w11
++    csel w10, wzr, w10, eq
++    str w10, [x9, #4]
++    cmp w12, w11
++    b.eq La31_putc_done
++    add w12, w12, #1
++    str w12, [x9, #8]
++La31_putc_done:
++    ret
++La31_entry_message:
++    .asciz "\n[A31-XNU] ENTRY MMU-OFF v1\n"
++    .align 2
++#endif
+--- /dev/null
++++ b/osfmk/arm64/a31_entry_io.h
+@@ -0,0 +1,40 @@
++#ifndef A31_XNU_ENTRY_IO_H
++#define A31_XNU_ENTRY_IO_H
++#include <stddef.h>
++#include <stdint.h>
++
++/* Mirrored into the XNU patch; host tests require byte-identical source. */
++static inline int
++a31_xnu_ring_putc(void *memory, size_t bytes, char character)
++{
++    if (!memory || ((uintptr_t)memory & 3) || bytes != 0x40000) return 0;
++    volatile uint32_t *header = memory;
++    const uint32_t capacity = 0x40000 - 12;
++    uint32_t start = header[1], used = header[2];
++    if (header[0] != 0x43474244 || start >= capacity || used > capacity ||
++        (used < capacity && start != used)) return 0;
++    volatile uint8_t *data = (volatile uint8_t *)memory + 12;
++    data[start++] = (uint8_t)character;
++    if (start == capacity) start = 0;
++    header[1] = start;
++    if (used < capacity) header[2] = used + 1;
++    return 1;
++}
++
++static inline int
++a31_xnu_request_recovery(void *memory, size_t bytes)
++{
++    if (!memory || ((uintptr_t)memory & 3) || bytes != 0x800) return 0;
++    volatile uint32_t *header = memory;
++    uint32_t linux_offset = header[11], console_offset = header[12];
++    if (header[0] != 0x43474244 || header[10] != bytes ||
++        linux_offset < 64 || (linux_offset & 63) ||
++        linux_offset > bytes - 0x3fc ||
++        console_offset < linux_offset + 0x3fc || console_offset > bytes) return 0;
++    volatile uint32_t *state = (volatile uint32_t *)((volatile uint8_t *)memory + linux_offset);
++    state[0x3ec / 4] = 0;
++    state[0x3f4 / 4] = 0x12345678;
++    state[0x3f8 / 4] = 0x12345674;
++    return 1;
++}
++#endif

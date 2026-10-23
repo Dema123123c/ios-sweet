@@ -8,6 +8,14 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- NEXT KERNEL CHECKPOINT IMPLEMENTED, not yet entered on phone. Patch0083
+  logs physical entry and enables a first-C arm_init checkpoint, then
+  requests recovery BEFORE rebase, CPU/VM startup or drivers. Narrow 16KiB
+  bootstrap log/SRAM mappings, guarded ring/recovery writes. Header tests
+  passed as static Linux EL0 executable on A31; real generated-header C
+  and assembly object cross-compiles PASS; 50 Python tests PASS. See
+  docs/A31-XNU-ENTRY.md. Need full macOS link, separately gated loader
+  entry mode/QEMU handoff, package and native evidence. V7 remains TWRP.
 - V7 NATIVE PREPARATION PASS on actual A31, 2026-10-23. Source
   b61c7caf8ae2333813f7ee665c33cca8e954428e, installed BOOT SHA
   01392251683dd543b355ab701fcc5afab5dcc3af6298910ddd6f843954c89eb0.
