@@ -115,7 +115,7 @@ ENABLE NEXT. This entry-only kernel still stops at first C; it never
 removes TTBR0 or starts secondary CPUs. These are not general runtime
 exception handlers and must not be reused after the identity map is gone.
 
-The shared assembly include records ESR/ELR/FAR/SCTLR/SP/vector slot without
+The shared assembly include records ESR/ELR/FAR/SCTLR/source-SP/SPSR/vector slot without
 using SP, calling C or dereferencing global pointers. At physical VBAR it
 can clear M/C/I before logging, avoiding dependence on a broken low I/O PTE.
 This fatal boot path discards kernel-private dirty state; its pstore mapping
@@ -126,7 +126,7 @@ words and issues PSCI SYSTEM_RESET. Bad SRAM headers receive no writes.
 
 The include is mirrored byte-for-byte into XNU, enforced by Python tests.
 A separate bare-metal QEMU harness executes that exact assembly from both
-incoming EL1 and EL2, with SP=0, MMU off/on, five malformed SRAM-header
+incoming EL1 and EL2, with both SP selectors and SP=0, MMU off/on, five malformed SRAM-header
 variants and an invalid ring header. It checks exact saved fault fields,
 cache/MMU shutdown and every SRAM word. Test-only completion replaces the
 final SMC after the guarded writes; it does not test Samsung firmware.

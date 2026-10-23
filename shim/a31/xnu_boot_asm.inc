@@ -36,6 +36,10 @@ LEXT(a31_boot_fault)
     mrs x21, far_el1
     mrs x22, sctlr_el1
     mov x24, sp
+    mrs x25, spsr_el1
+    tbnz x25, #0, La31_source_sp_saved
+    mrs x24, sp_el0
+La31_source_sp_saved:
     /* VBAR and this handler are physical and identity-mapped. Fatal boot
      * discards kernel-private dirty state; pstore uses only NC/device pages.
      * Leave translation before accessing log/SRAM, even for a bad I/O PTE.
@@ -66,6 +70,10 @@ LEXT(a31_boot_fault)
     adr x8, La31_sp_message
     bl EXT(a31_boot_string)
     mov x8, x24
+    bl EXT(a31_boot_hex)
+    adr x8, La31_spsr_message
+    bl EXT(a31_boot_string)
+    mov x8, x25
     bl EXT(a31_boot_hex)
     adr x8, La31_slot_message
     bl EXT(a31_boot_string)
@@ -195,6 +203,7 @@ La31_elr_message: .asciz "XNU_FAULT_ELR="
 La31_far_message: .asciz "XNU_FAULT_FAR="
 La31_sctlr_message: .asciz "XNU_FAULT_SCTLR="
 La31_sp_message: .asciz "XNU_FAULT_SP="
+La31_spsr_message: .asciz "XNU_FAULT_SPSR="
 La31_slot_message: .asciz "XNU_FAULT_SLOT="
 La31_request_message: .asciz "[A31-XNU] BOOT RECOVERY REQUEST\n"
 La31_reset_bad_message: .asciz "[A31-XNU] BOOT RECOVERY FAILED\n"

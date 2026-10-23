@@ -87,7 +87,9 @@ void a31_boot_test_verify(uint64_t result)
     } else {
         if (size > 0x3fff4 || value("XNU_FAULT_ESR=", size) != 0x2000000 ||
             value("XNU_FAULT_ELR=", size) != (uintptr_t)a31_boot_test_fault ||
-            value("XNU_FAULT_SLOT=", size) != 4 || value("XNU_FAULT_SP=", size) != 0 ||
+            value("XNU_FAULT_SLOT=", size) != (BOOT_SOURCE_SP ? 4 : 0) ||
+            (value("XNU_FAULT_SPSR=", size) & 1) != BOOT_SOURCE_SP ||
+            value("XNU_FAULT_SP=", size) != 0 ||
             ((value("XNU_FAULT_SCTLR=", size) & 1) != BOOT_MMU)) {
             text("FAIL fault fields\n"); exit_test(0);
         }

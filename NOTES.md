@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- EXTENDED boot-fault handler to record SPSR and original source SP:
+  EL1t faults switch to SP_EL1 on exception, so reading current SP alone
+  misidentifies the failed stack. SPSR.SP selects SP_EL0 vs current SP_EL1.
+  Added SP0/MMU-off+on cases with BOTH stack pointers zero, in addition
+  to SP1/bad-header cases. Ten harness variants/20 EL1+EL2 runs planned.
+  Native compile, all harness compiles and 59 Python PASS. Earlier source
+  78c4340 shim CI39951828896 passed all16 original harness runs; full
+  kernel CI39951828892 was queued and is superseded by this source update.
+  New 20-run execution/full kernel still pending; phone unchanged/TWRP.
 - V11 BOOT-FAULT INSTRUMENTATION IMPLEMENTED, not flashed. Patch0084
   installs dedicated PHYSICAL boot vectors, logs ESR/ELR/FAR/SCTLR/SP/slot
   without stack/C/global pointers, clears M/C/I on fatal physical path,

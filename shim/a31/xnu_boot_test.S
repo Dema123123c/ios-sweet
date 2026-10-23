@@ -66,6 +66,10 @@ el1:
 #endif
     mov x0, #0
     mov sp, x0
+#if !BOOT_SOURCE_SP
+    msr sp_el0, x0
+    msr spsel, #0
+#endif
 .global a31_boot_test_fault
 a31_boot_test_fault:
     .inst 0

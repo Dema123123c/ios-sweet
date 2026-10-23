@@ -16,14 +16,14 @@ def run(out, cc='clang', qemu='qemu-system-aarch64', compile_only=False):
     objcopy = compiler.with_name('llvm-objcopy' + compiler.suffix)
     if not objcopy.is_file(): objcopy = Path(shutil.which('llvm-objcopy') or 'llvm-objcopy')
     reports = []
-    cases = [(0, 0), (1, 0)] + [(0, bad) for bad in range(1, 7)]
-    for mmu, bad in cases:
-        case = out / f'mmu{mmu}-bad{bad}'
+    cases = [(0, 0, 1), (1, 0, 1), (0, 0, 0), (1, 0, 0)] + [(0, bad, 1) for bad in range(1, 7)]
+    for mmu, bad, source_sp in cases:
+        case = out / (f'mmu{mmu}-bad{bad}' + ('-sp0' if not source_sp else ''))
         case.mkdir(exist_ok=True)
         flags = ['--target=aarch64-none-elf', '-march=armv8-a', '-O2', '-ffreestanding',
                  '-nostdlib', '-fno-builtin', '-fno-stack-protector', '-mgeneral-regs-only',
                  '-mno-outline-atomics', '-fno-pic', '-Wall', '-Wextra', '-Werror',
-                 f'-DBOOT_MMU={mmu}', f'-DBOOT_BAD={bad}']
+                 f'-DBOOT_MMU={mmu}', f'-DBOOT_BAD={bad}', f'-DBOOT_SOURCE_SP={source_sp}']
         objects = []
         for name in ['xnu_boot_test.S', 'xnu_boot_test.c']:
             obj = case / (name + '.o')
@@ -52,11 +52,11 @@ def run(out, cc='clang', qemu='qemu-system-aarch64', compile_only=False):
                 raise
             text = result.stdout + result.stderr
             (case / f'el{entry_el}.log').write_text(text, encoding='utf-8')
-            print(f'MMU={mmu} bad={bad} incoming_EL={entry_el}: {text.strip()}')
+            print(f'MMU={mmu} bad={bad} source_SP={source_sp} incoming_EL={entry_el}: {text.strip()}')
             if result.returncode or 'A31 BOOT FAULT TEST PASS' not in text or 'FAIL ' in text:
                 raise RuntimeError('boot fault assembly test failed')
             reports.append({'mmu_at_fault': mmu, 'bad_header_case': bad, 'incoming_el': entry_el,
-                            'result': 'pass', 'stack_pointer_at_fault': 0})
+                            'result': 'pass', 'stack_pointer_at_fault': 0, 'source_sp': source_sp})
     (out / 'results.json').write_text(json.dumps(reports, indent=2) + '\n')
 
 
