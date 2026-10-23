@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- FIXED SMC SOURCE f5f5a2ce3dcc9c26eb891edf2bb9afaf5539da83 pushed.
+  Shim CI39964266188 SUCCESS (64 Python + sanitizers +20 shared-assembly
+  and prior EL1/EL2 controls). Download research/a31-smc-fix-ci-f5f5a2c.
+  Full kernel CI39964266332 IN PROGRESS, macOS runner13:48:31 UTC,
+  Build13:48:43; includes new linked _a31_return DSB/ISB/SMC gate.
+  Await SUCCESS, download xnu-kernel into
+  research/a31-smc-fix-kernel-ci-f5f5a2c/kernel; reset_code report must match
+  check_kernel_reset(actual bytes). Private research/a31-smc-fix-attempt/
+  prepare.py/test_v17.py ready but NOT run; output a31-smc-fix-v17 absent.
+  Fresh gates expect current V16 BOOT028ea1af...ee672f. Phone TWRP.
+  Corrected test must be normal XNU first-C/no BRK/no watchdog. Need native
+  C STAGE, ENTRY-CHECK PASS and auto RECOVERY REQUEST before claiming fix.
 - ROOT DEFECT FOUND in actual linked V11 C reset: _a31_return has DSB
   at548c then MOV at5490, NO ISB OR SMC. Darwin arm64 treats semicolons as
   comments: inline "dsb sy; isb; smc #0" emitted only DSB. Independently
