@@ -31,6 +31,9 @@ int main(int argc, char **argv)
     assert(dt_reg(&dt, node, 1, &base, &size) && base == 0x0c040000 && size == 0x200000);
     assert(!dt_reg(&dt, node, 2, &base, &size));
     assert(!dt_compatible(&dt, "arm,not-a-device", &node));
+    assert(dt_root_child(&dt, "reserved-memory", &node));
+    assert(!dt_root_child(&dt, "firmware", &node));
+    assert(!dt_root_child(&dt, "absent", &node));
     assert(dt_reserved(&dt, "firmware", &node));
     assert(!dt_reserved(&dt, "sec-log", &node));
     assert(!dt_open(&dt, data, (size_t)length - 1));
@@ -85,6 +88,38 @@ int main(int argc, char **argv)
     assert(!ramoops_log_bind(&persisted, (uint8_t *)guarded + 1, 64));
     assert(!ramoops_log_bind(&persisted, guarded, 12));
     assert(!ramoops_log_bind(&persisted, guarded, 0x40004));
-    puts("FDT bounds/reg, Samsung LOGM and ramoops ring tests PASS");
+    uint32_t reset_guarded[514], original[514];
+    for (unsigned i = 0; i < 514; i++) reset_guarded[i] = 0x5a5a5a5a;
+    uint32_t *header = reset_guarded + 1;
+    header[0] = 0x43474244;
+    header[10] = 0x800;
+    header[11] = 0x200;
+    header[12] = 0x740;
+    memcpy(original, reset_guarded, sizeof(original));
+    struct samsung_recovery recovery;
+    assert(samsung_recovery_bind(&recovery, header, 0x800));
+    samsung_recovery_request(&recovery);
+    assert(header[(0x200 + 0x3ec) / 4] == 0);
+    assert(header[(0x200 + 0x3f4) / 4] == 0x12345678);
+    assert(header[(0x200 + 0x3f8) / 4] == 0x12345674);
+    for (unsigned i = 0; i < 514; i++) {
+        if (i != 1 + (0x200 + 0x3ec) / 4 && i != 1 + (0x200 + 0x3f4) / 4 &&
+            i != 1 + (0x200 + 0x3f8) / 4) assert(reset_guarded[i] == original[i]);
+    }
+    for (unsigned i = 0; i < 4; i++) {
+        memcpy(reset_guarded, original, sizeof(original));
+        header[(unsigned[]){0, 10, 11, 12}[i]] = 0xffffffff;
+        assert(!samsung_recovery_bind(&recovery, header, 0x800));
+    }
+    memcpy(reset_guarded, original, sizeof(original));
+    header[11] = 0x201;
+    assert(!samsung_recovery_bind(&recovery, header, 0x800));
+    header[11] = 0x200;
+    header[12] = 0x5f8;
+    assert(!samsung_recovery_bind(&recovery, header, 0x800));
+    assert(!samsung_recovery_bind(&recovery, header, 0x7ff));
+    assert(!samsung_recovery_bind(&recovery, header, 0x804));
+    assert(!samsung_recovery_bind(&recovery, (uint8_t *)header + 1, 0x800));
+    puts("FDT bounds/reg, Samsung LOGM, ramoops and recovery SRAM bounds tests PASS");
     return 0;
 }

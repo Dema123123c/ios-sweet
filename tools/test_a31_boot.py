@@ -1,9 +1,12 @@
 import struct
 import hashlib
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from mka31diag import (dtbs, unpack, require_parent_digest, check_boot_contract,
-                      validate_live_unlocked_fdt, validate_pstore_profile, PSTORE_PROFILE)
+                      validate_live_unlocked_fdt, validate_pstore_profile, PSTORE_PROFILE,
+                      validate_return_recovery)
 from test_a31 import fixture
 
 
@@ -29,6 +32,18 @@ def boot():
 
 
 class A31BootTests(unittest.TestCase):
+    def test_automatic_return_requires_the_matching_recovery_dump(self):
+        requirement = {'recovery_return': {'recovery_sha256':
+            'd8a89533d039c79618b4dffcdc5cdec5949534020b2011088a02b1899bbcd890'}}
+        with self.assertRaisesRegex(ValueError, '--recovery-image'):
+            validate_return_recovery(requirement, None)
+        with TemporaryDirectory() as folder:
+            path = Path(folder) / 'recovery.img'
+            path.write_bytes(b'wrong recovery')
+            with self.assertRaisesRegex(ValueError, 'SRAM reset ABI'):
+                validate_return_recovery(requirement, path)
+        self.assertIsNone(validate_return_recovery({}, None))
+
     def test_pstore_profile_accepts_recovery_sysfs_decimal_strings(self):
         self.assertEqual(validate_pstore_profile({k: str(v) for k, v in PSTORE_PROFILE.items()}),
                          PSTORE_PROFILE)

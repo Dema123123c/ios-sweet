@@ -74,6 +74,11 @@ def build(out, cc='clang', qemu=False, entry_fault=False):
                 'image_flags': image_flags, 'entry_fault_test': entry_fault,
                 'early_entry_log': True}
     if not qemu:
+        metadata['recovery_return'] = {
+            'method': 'Samsung SRAM recovery flags + PSCI SYSTEM_RESET via SMC',
+            'recovery_sha256': 'd8a89533d039c79618b4dffcdc5cdec5949534020b2011088a02b1899bbcd890',
+            'sram_base': '0x10dc00', 'sram_bytes': 0x800,
+            'hardware_tested': False}
         metadata['pstore_console'] = {'base': '0x4d05f000', 'bytes': 0x40000,
                                      'recovery_layout_profile_required': True}
         metadata['watchdog'] = {'base': '0x10007000', 'action': 'keyed clear of EN bit; readback required',

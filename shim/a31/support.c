@@ -151,6 +151,48 @@ int dt_reserved(const struct dt_view *dt, const char *prefix, uint32_t *node)
     }
     return 0;
 }
+int dt_root_child(const struct dt_view *dt, const char *wanted, uint32_t *node)
+{
+    uint32_t p = dt->structure, kind, found = 0, match = 0;
+    int depth = 0;
+    const char *name;
+    struct dt_property value;
+    while (p < dt->structure + dt->structure_size) {
+        uint32_t start = p;
+        if (!token(dt, &p, &kind, &name, &value)) return 0;
+        if (kind == 1) {
+            if (++depth == 2 && equal(name, wanted)) { found++; match = start; }
+        } else if (kind == 2) depth--;
+        else if (kind == 9) break;
+    }
+    if (found != 1) return 0;
+    *node = match;
+    return 1;
+}
+
+int samsung_recovery_bind(struct samsung_recovery *context, void *memory, size_t size)
+{
+    if (!memory || ((uintptr_t)memory & 3) || size != 0x800) return 0;
+    volatile uint32_t *header = memory;
+    uint32_t linux_offset = header[11], console_offset = header[12];
+    if (header[0] != 0x43474244 || header[10] != size ||
+        linux_offset < 64 || (linux_offset & 63) ||
+        linux_offset > size - 0x3fc ||
+        console_offset < linux_offset + 0x3fc || console_offset > size) return 0;
+    /* Offsets independently verified in the installed recovery's sec_reboot(). */
+    volatile uint8_t *reason = (volatile uint8_t *)memory + linux_offset;
+    context->upload = (volatile uint32_t *)(reason + 0x3ec);
+    context->power_reset = (volatile uint32_t *)(reason + 0x3f4);
+    context->reason = (volatile uint32_t *)(reason + 0x3f8);
+    return 1;
+}
+
+void samsung_recovery_request(struct samsung_recovery *context)
+{
+    *context->upload = 0;
+    *context->power_reset = 0x12345678;
+    *context->reason = 0x12345674;
+}
 int dt_reg(const struct dt_view *dt, uint32_t node, unsigned index,
            uint64_t *base, uint64_t *size)
 {

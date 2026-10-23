@@ -15,6 +15,13 @@ int dt_reserved(const struct dt_view *dt, const char *prefix, uint32_t *node);
 int dt_reg(const struct dt_view *dt, uint32_t node, unsigned index,
            uint64_t *base, uint64_t *size);
 int dt_string(const struct dt_property *property, const char *value);
+int dt_root_child(const struct dt_view *dt, const char *name, uint32_t *node);
+
+struct samsung_recovery {
+    volatile uint32_t *upload, *power_reset, *reason;
+};
+int samsung_recovery_bind(struct samsung_recovery *context, void *memory, size_t size);
+void samsung_recovery_request(struct samsung_recovery *context);
 
 struct sec_log {
     volatile uint8_t *data;

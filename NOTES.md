@@ -8,6 +8,42 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- CONTROL RESULT: manual TWRP->TWRP long-key reboot lost the PMSG marker;
+  /sys/fs/pstore empty, captured at uptime14.84s. A fresh software control
+  via adb reboot recovery DID recover its unique marker in PMSG, along
+  with console-ramoops. Evidence research/a31-longkey-pstore-control and
+  research/a31-software-pstore-control-20261023. This proves method-specific
+  loss of available evidence, not that DRAM itself necessarily cleared.
+- NEW CANDIDATE (not flashed): automatic Samsung recovery request via SRAM
+  plus PSCI SYSTEM_RESET, after finish (pass/fail), avoiding the long-key
+  return. Exact fields independently checked in actual recovery kernel
+  sec_reboot at Image+d1e7fc: Linux offset from header+2c, is_upload+3ec,
+  is_power_reset+3f4=12345678, reason+3f8=12345674. Source docs/A31-RESET.md.
+  Captured private live symbols; kptr_restrict temporarily0, restored2 in
+  finally and verified, no persistent change. Live adb shell NOW uid0/su;
+  do not assume older shell-uid2000 observation still applies.
+- Candidate bounds-checks exact chosen SRAM descriptor 10dc00/800/type1/ac0,
+  header signature/size/Linux/console bounds, PSCI smc and version. Native
+  package now REQUIRES matching recovery image d8a89533...cd890. No new
+  watchdog reset/PMIC/storage writes; original WDT EN clear unchanged.
+  Local native/QEMU cross-compiles and 38 Python tests passed. New guarded
+  SRAM-word tests also cross-compiled static and ran successfully as Linux
+  EL0 on this A31 in TWRP; this tests bounds/flags only, not native reset.
+  Host ASan/UBSan and QEMU CI pending.
+  Phone remains TWRP, V5 BOOT installed, no further partition writes.
+- V5 FIRST RETURN: user reports TWRP opened and splash did NOT repeat during
+  the test. Collected immediately at recovery uptime ~31 seconds into private
+  research/a31-v5-first-return-logs: no expected-build session in last_kmsg
+  or sec_log; neither pstore console filename exists. Entry/MMU/timer/WDT
+  remain UNPROVEN. Lack of looping is an observation, not proof of WDT OFF.
+- PENDING CONTROL: existing Linux PMSG persistence was tested only across
+  adb reboot recovery, not the forced long-key return used for native tests.
+  Wrote A31-LONGKEY-PSTORE-CONTROL-20261023-v1 to /dev/pmsg0 (debug RAM,
+  no partition writes). User asked to return directly TWRP->TWRP via same
+  Power+Down then Power+Up route. Read /sys/fs/pstore on return and search
+  marker BEFORE another reboot. Private research/a31-longkey-pstore-control.
+  This separates loss on manual reset from missing native output; do not
+  repeat V5 or interpret missing logs until this retention route is tested.
 - CURRENT LIVE V5 TEST STARTED 2026-10-23 09:16 UTC. BOOT p35 only written
   with 1b715df8...ec70111, complete 32MiB raw readback matches. Immediately
   before write, target/size, fresh FDT unlocked/orange, exact pstore profile,

@@ -45,6 +45,21 @@ def validate_pstore_profile(profile):
     return values
 
 
+def validate_return_recovery(metadata, recovery_image):
+    requirement = metadata.get('recovery_return')
+    if not requirement:
+        return None
+    if recovery_image is None:
+        raise ValueError('automatic recovery return requires --recovery-image from current TWRP')
+    data = recovery_image.read_bytes()
+    expected = 'd8a89533d039c79618b4dffcdc5cdec5949534020b2011088a02b1899bbcd890'
+    if (requirement.get('recovery_sha256') != expected or len(data) != 33554432 or
+            sha(data) != expected):
+        raise ValueError('recovery does not match the independently checked SRAM reset ABI')
+    return {'sha256': expected, 'reset_abi_verified_in_recovery_binary': True,
+            'native_return_hardware_tested': False}
+
+
 def validate_unlocked_stock(properties):
     required = {'ro.product.model': 'SM-A315F', 'ro.product.device': 'a31',
                 'ro.build.PDA': 'A315FXXU5DXJ1', 'sys.boot_completed': '1',
@@ -188,7 +203,8 @@ def package_tar(path, data):
 
 
 def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
-          unlocked_stock_properties=None, live_recovery_fdt=None, pstore_profile=None):
+          unlocked_stock_properties=None, live_recovery_fdt=None, pstore_profile=None,
+          recovery_image=None):
     live_report = None
     if unlocked_stock_properties is not None:
         if live_recovery_fdt is None:
@@ -206,6 +222,7 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
         if 'mediatek,MT6768' not in strings(nodes['/']['compatible']):
             raise ValueError('stock DTB does not identify MT6768')
     metadata = json.loads((native_dir / 'build.json').read_text())
+    checked_recovery = validate_return_recovery(metadata, recovery_image)
     checked_pstore = None
     if metadata.get('pstore_console'):
         if pstore_profile is None:
@@ -289,6 +306,8 @@ def build(stock_path, native_dir, output, mkbootimg, avbtool, parent_vbmeta,
               'source_image_manifest': metadata}
     if checked_pstore is not None:
         report['recovery_pstore_profile'] = checked_pstore
+    if checked_recovery is not None:
+        report['automatic_recovery_return'] = checked_recovery
     (output / 'manifest.json').write_text(json.dumps(report, indent=2) + '\n', encoding='utf-8')
     print(json.dumps(report, indent=2))
     return report
@@ -313,9 +332,12 @@ if __name__ == '__main__':
                              'for unlocked tests; rejects green or contradictory bootargs')
     parser.add_argument('--pstore-profile', type=Path,
                         help='fresh recovery ramoops sysfs parameter JSON; mandatory for pstore diagnostics')
+    parser.add_argument('--recovery-image', type=Path,
+                        help='current matching TWRP partition dump; required by automatic-return diagnostics')
     args = parser.parse_args()
     build(args.stock_boot.resolve(), args.native_dir.resolve(), args.out.resolve(),
           args.mkbootimg.resolve(), args.avbtool.resolve(), args.parent_vbmeta.resolve(),
           args.unlocked_stock_properties.resolve() if args.unlocked_stock_properties else None,
           args.live_recovery_fdt.resolve() if args.live_recovery_fdt else None,
-          args.pstore_profile.resolve() if args.pstore_profile else None)
+          args.pstore_profile.resolve() if args.pstore_profile else None,
+          args.recovery_image.resolve() if args.recovery_image else None)

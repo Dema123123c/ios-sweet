@@ -11,6 +11,19 @@ static struct sec_log log_ring;
 static struct ramoops_log pstore_ring;
 static int log_ready;
 static int pstore_ready;
+static struct samsung_recovery recovery_context;
+static int recovery_ready;
+static uint64_t psci(uint64_t function)
+{
+    register uint64_t x0 __asm__("x0") = function;
+    register uint64_t x1 __asm__("x1") = 0;
+    register uint64_t x2 __asm__("x2") = 0;
+    register uint64_t x3 __asm__("x3") = 0;
+    __asm__ volatile("smc #0" : "+r"(x0), "+r"(x1), "+r"(x2), "+r"(x3) ::
+                     "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11",
+                     "x12", "x13", "x14", "x15", "x16", "x17", "memory");
+    return x0;
+}
 #endif
 static uint64_t frequency;
 static volatile uint32_t timer_irqs, other_irqs;
@@ -45,6 +58,13 @@ static __attribute__((noreturn)) void finish(int success)
     __asm__ volatile("hlt #0xf000" : "+r"(x0), "+r"(x1) :: "memory");
 #else
     (void)success;
+    if (recovery_ready) {
+        text("RECOVERY RETURN REQUESTED\n");
+        samsung_recovery_request(&recovery_context);
+        BARRIER();
+        field("PSCI_RESET_RETURN=", psci(0x84000009));
+        text("RECOVERY RETURN FAILED\n");
+    }
 #endif
     for (;;) __asm__ volatile("wfe");
 }
@@ -78,6 +98,32 @@ static void stop_platform_watchdog(const struct dt_view *dt)
     field("WDT_MODE_AFTER=", after);
     if (after & 1) fail("watchdog disable did not stick");
     text("WDT OFF\n");
+}
+
+static void prepare_recovery_return(const struct dt_view *dt)
+{
+    uint32_t node;
+    struct dt_property property;
+    static const uint8_t descriptor[16] = {
+        0x00, 0xdc, 0x10, 0x00, 0x00, 0x08, 0x00, 0x00,
+        0x01, 0x00, 0x00, 0x00, 0xc0, 0x0a, 0x00, 0x00 };
+    if (!dt_root_child(dt, "chosen", &node) ||
+        !dt_property(dt, node, "ram_console", &property) || property.size != 16)
+        fail("recovery SRAM descriptor missing");
+    for (unsigned i = 0; i < sizeof(descriptor); i++)
+        if (property.data[i] != descriptor[i]) fail("recovery SRAM descriptor mismatch");
+    if (!samsung_recovery_bind(&recovery_context, (void *)0x10dc00, 0x800))
+        fail("recovery SRAM header mismatch");
+    if ((!dt_compatible(dt, "arm,psci-1.0", &node) &&
+         !dt_compatible(dt, "arm,psci-0.2", &node)) ||
+        !dt_property(dt, node, "method", &property) || property.size != 4 ||
+        !dt_string(&property, "smc")) fail("recovery PSCI conduit mismatch");
+    uint64_t version = psci(0x84000000);
+    field("PSCI_VERSION=", version);
+    if (version != 2 && (version < 0x10000 || version > 0x10002))
+        fail("recovery PSCI version unsupported");
+    recovery_ready = 1;
+    text("RECOVERY RETURN ARMED\n");
 }
 #endif
 
@@ -260,6 +306,9 @@ void diag_early(uintptr_t fdt_address, uint64_t entry_el)
     if (entry_el == 2) field("ENTRY_SCTLR=", READ(sctlr_el2));
     else field("ENTRY_SCTLR=", READ(sctlr_el1));
     text("EARLY ENTRY RECORDED\n");
+#if !DIAG_QEMU
+    prepare_recovery_return(&dt);
+#endif
     (void)base; (void)size;
 }
 

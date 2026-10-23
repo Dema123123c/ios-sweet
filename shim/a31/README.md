@@ -4,7 +4,9 @@ This is a standalone first-stage diagnostic, not an XNU loader or iOS image.
 It does not read or write storage, initialise the display, or start secondary
 CPUs. It enters EL1 (including an EL2 handoff), checks 16 KiB translation
 through a distinct virtual alias, and checks three virtual-timer interrupts
-through GICv3. The native build then halts; manual recovery is required.
+through GICv3. The updated native build attempts a software return to the
+matching TWRP after logging a result. If entry or return fails, manual
+recovery remains necessary. Native software return is not yet tested.
 
 The entry path sets a stack and exception vectors at the incoming EL1 or
 EL2 before the EL2-to-EL1 handoff. After validating the FDT and reserved
@@ -14,6 +16,15 @@ entry to the main diagnostic. EL2 exceptions record ESR/ELR/FAR at EL2.
 The early log cannot observe rejection before image entry, an unsupported
 entry EL, MMU/cache enabled on entry, or a fault before log binding.
 No native entry marker has been recovered from this phone yet.
+
+The software-return candidate validates the exact `/chosen/ram_console`
+SRAM descriptor, its live header and Linux-field bounds, and the FDT PSCI
+SMC conduit. It verifies PSCI_VERSION, then arms the return. On finish it
+sets only Samsung's three recovery-request words in that SRAM and calls
+PSCI SYSTEM_RESET. The offsets were checked in the installed TWRP binary;
+the packager requires a matching `--recovery-image`. No new watchdog reset,
+PMIC, storage or bootloader writes are included. The original watchdog
+EN-bit clear remains. See [reset evidence](../../docs/A31-RESET.md).
 
 The native build accepts the captured MT6768 platform and the Samsung
 sec-log reserved region at 0x46c00000 / 2 MiB. It appends to the LOGM ring
