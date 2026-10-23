@@ -8,6 +8,15 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V9 ACTUAL HARDWARE PHYSICAL ENTRY BRK PASS. User observed automatic
+  TWRP return; expected0ffbb56 session recovered from BOTH last_kmsg and
+  console-ramoops in research/a31-v9-entry-brk-logs/report.json. MMU16K,
+  timer3/other0, payload readback pass; armed word originally14000719;
+  ELR10148c488 exactly equals kernel entry, ESRf2000a31, BRK PASS and final
+  diagnostic PASS. This proves executing the substituted BRK at the real
+  >4GiB destination and software-return evidence path. No original XNU
+  instruction ran. V9 remains installed, phone TWRP. Next isolate initial
+  XNU assembler before its VBAR/stack/MMU changes; do not call V9 iOS boot.
 - V9 BOOT WRITTEN/READ BACK/REBOOTED 2026-10-23 11:55:40 UTC.
   Exact SHA4c491327...ccf99b, target p35 only. Recovery and both vbmetas
   remain unchanged; point-of-write FDT unlocked/orange, IOMEM/pstore gates
