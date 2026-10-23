@@ -8,6 +8,24 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V22 NATIVE RUNTIME CPU INIT PASS. Matching70bbb0e pstore contains all
+  ordered prior checkpoints, stage5 STARTUP-LOCKS-CHECK PASS, stage6
+  CPU-INIT-CHECK PASS, RECOVERY REQUEST; EL1/SCTLR3454593d/13MHz and no
+  failure/exception/reset-return markers. User automatic TWRP; actual matching
+  logs captured. ONLY pstore proves XNU; last_kmsg has loader records.
+  This verifies early rtclock, startup tunables/timeouts/locks, timer-call
+  init, CPU ARM64/running flag/sleep-token0/timer deadline/current thread.
+  Scheduling, processor_bootstrap, VM, GPU/display/drivers/iOS are NOT running.
+  User asked to verify this and save everything; clarified CPU versus GPU.
+  Private evidence research/a31-v22-runtime-logs/report.json; operation/pending
+  updated. V22 BOOT5daceb2c...ff6c0db1 retained in TWRP; original restore
+  available, recovery/vbmetas unchanged. Imagee7a5434535e4a507bcc9458dbf0df1d6c951742d25b0b92660284f34912e701c,
+  payloadcdefbbbb3fa49abc8f6e911a568f16f3dcbe1d6502251ccd29a3cfbadfbd5f5b.
+  NEXT: processor bootstrap/VM requires persistent final pstore/SRAM mapping
+  and logger pointer transition BEFORE TTBR0 invalidation; audit callbacks
+  and final trap handling. See prior next-vm-audit.json. No pending phone
+  operation or active build. Local checkpoint archive is being saved under
+  outputs/a31-v22-checkpoint-20261023 outside Git; verify manifest before reuse.
 - V22 NATIVE RUNTIME TEST STARTED 2026-10-23 15:31:55 UTC. Kernel and
   shim SUCCESS source70bbb0efad041da1e7edc8c6651c191df2a4790d; actual-kernel
   QEMU39978346567 SUCCESS with ordered stage5 STARTUP-LOCKS-CHECK PASS and

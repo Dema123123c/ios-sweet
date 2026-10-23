@@ -34,6 +34,30 @@ and userland. A working display or iOS installation is not established.
 
 ## Checkpoint design and historical controls
 
+V22 passed the next group on the real A31: `rtclock_early_init`, startup
+tunables/timeouts/locks, timer-call initialization and `cpu_init`. Patch 0090
+continues stage 4/5, verifies the runtime CPU fields, then stops at stage 6
+before `processor_bootstrap` and VM. Matching pstore contains the ordered
+prior checkpoints, STARTUP-LOCKS-CHECK PASS, CPU-INIT-CHECK PASS and recovery
+request with EL1, SCTLR `0x3454593d`, 13 MHz CNTFRQ and no exception/failure.
+The user confirmed automatic TWRP return. Only pstore establishes XNU results;
+last_kmsg contains loader records. Private evidence:
+`research/a31-v22-runtime-logs/report.json`.
+
+Source `70bbb0efad041da1e7edc8c6651c191df2a4790d`, kernel CI39977026628,
+shim CI39977026552 and actual-kernel QEMU CI39978346567 passed. QEMU's absent
+Samsung SRAM header prevents emulated firmware reset; the native software
+reset is separately confirmed. The actual target disables MONOTONIC and
+paravirtual ticket locks; generic KPC idle hooks are empty. No Apple PMU or
+Qualcomm driver initialization is introduced by this test.
+
+V22 remains in BOOT with the original restore retained; full readback SHA:
+`5daceb2c179f0f4298dbbef9d4611922fafa1a85307faaac5ac724a4ff6c0db1`.
+Recovery and both vbmetas were checked unchanged. This is CPU initialization,
+not GPU initialization. Scheduling, VM, graphics and iOS userland have not run.
+Before VM teardown of TTBR0, the log and recovery helpers need persistent
+final kernel mappings and a checked transition from their current low VAs.
+
 V20 passed early `PE_init_platform(FALSE)` on the real A31. Patch 0088
 represents the unknown bus frequency as zero with valid 0/1 ratios, avoiding
 zero division and doubled-CPU overflow without inventing a bus frequency.
