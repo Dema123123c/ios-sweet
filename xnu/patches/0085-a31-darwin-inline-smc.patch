@@ -1,0 +1,14 @@
+A31: Darwin arm64 treats semicolons in inline assembly as comments.
+Use real newlines so ISB and PSCI SMC are emitted after DSB.
+
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -183,7 +183,7 @@
+         register uint64_t arg1 __asm__("x1") = 0;
+         register uint64_t arg2 __asm__("x2") = 0;
+         register uint64_t arg3 __asm__("x3") = 0;
+-        __asm__ volatile("dsb sy; isb; smc #0"
++        __asm__ volatile("dsb sy\nisb\nsmc #0"
+             : "+r"(function), "+r"(arg1), "+r"(arg2), "+r"(arg3)
+             : : "x4", "x5", "x6", "x7", "x8", "x9", "x10", "x11",
+                 "x12", "x13", "x14", "x15", "x16", "x17", "memory");

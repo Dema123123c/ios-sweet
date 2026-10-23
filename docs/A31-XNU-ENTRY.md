@@ -177,3 +177,21 @@ V15 reached the actual high-KVA arm_init entry on A31: exact intentional
 BRK at ELRfffffe0007ad4fe8 with SCTLR3454593d. This verifies the high-KVA
 branch after CPACR/TPIDR/MIDR setup, before the original function prologue
 or stack stores. First diagnostic C-call success remains unverified.
+
+V16 on the A31 passed arm_init's original stack prologue, GOT guard load
+and initial stores: intentional BRK at fffffe0007ad5030, SPfffffe00080b3f30,
+SCTLR3454593d, before BL sweet_early_mark.
+
+## Missing C reset instruction found
+
+Disassembly of the actual V11 _a31_return showed DSB followed directly
+by the return-value logger, with no ISB or SMC. Darwin arm64 uses semicolon
+as an assembler comment, so the inline string "dsb sy; isb; smc #0"
+only emitted its first instruction. A minimal target-macOS compile
+reproduced this; real newline separators emitted all three instructions.
+Patch0085 corrects the string. The kernel workflow now requires the exact
+DSB/ISB/SMC sequence inside the linked _a31_return symbol, rather than
+accepting strings or an unrelated SMC elsewhere. Host regression cases
+reject a truncated string and a valid sequence in a different function.
+This explains a definite missing reset call, but a corrected native
+first-C run is still needed to establish complete checkpoint behavior.

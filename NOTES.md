@@ -8,6 +8,28 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- ROOT DEFECT FOUND in actual linked V11 C reset: _a31_return has DSB
+  at548c then MOV at5490, NO ISB OR SMC. Darwin arm64 treats semicolons as
+  comments: inline "dsb sy; isb; smc #0" emitted only DSB. Independently
+  reproduced using arm64-apple-macos13.0 compiler; private proof.o shows
+  bad DSB/RET versus newline form DSB/ISB/SMC/RET. Evidence
+  research/a31-inline-asm-proof. Existing QEMU first-C test lacked Samsung
+  SRAM so never reached the missing SMC; marker-only link gates missed it.
+  Patch0085 uses explicit escaped newlines. tools/a31_reset_check.py now
+  scopes to actual _a31_return symbol and requires aligned DSB/ISB/SMC
+  sequence within that function; unrelated boot-handler SMC cannot pass.
+  New macOS CI gate records reset_code; original V11 rejected for exact
+  missing instruction sequence. 64 Python tests PASS incl four reset-code
+  cases; git apply --check PASS. Full fixed-kernel build pending push.
+- V16 ACTUAL NATIVE C PROLOGUE CHECKPOINT PASS. Expected2882936 pstore
+  exact BRK ELRfffffe0007ad5030/ESRf2000a31/M=1/SPfffffe00080b3f30,
+  stage markers and auto PSCI TWRP return. Original arm_init stack stores,
+  GOT guard load and zero stores executed. Diagnostic call not executed
+  in this control. Evidence research/a31-v16-c-prologue-logs/checkpoint-result.json.
+  V16 BOOT028ea1af5689a94de7fdd767ce15511a760329656fccaf900bd84fafa0ee672f
+  written/readback at13:39:12 UTC; recovery/vbmetas unchanged, phone TWRP.
+  Original BOOT not restored. Next test corrected kernel first C/reset,
+  with no intentional BRK and no watchdog, after full kernel/SMC gate PASS.
 - V16 C PROLOGUE CONTROL READY, not flashed at checkpoint. QEMU
   CI39961861994 SUCCESS source288293613e23f547657f42524faf5e492df03932.
   Exact BRK at VAfffffe0007ad5030 after arm_init stack stores, M=1.

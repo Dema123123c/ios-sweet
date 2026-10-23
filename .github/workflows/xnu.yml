@@ -108,10 +108,12 @@ jobs:
           import hashlib, json, os
           from pathlib import Path
           from a31_payload import validate_kernel
+          from a31_reset_check import check_kernel_reset
           config = os.environ['KERNEL_CONFIG'].lower()
           kernel = Path('dxb/fakeroot/System/Library/Kernels') / ('kernel.' + config + '.a31')
           data = kernel.read_bytes()
           result = validate_kernel(data)
+          result['reset_code'] = check_kernel_reset(data)
           for marker in (b'[A31-XNU] ENTRY MMU-OFF v1', b'[A31-XNU] ENTRY-CHECK PASS',
                          b'[A31-XNU] RECOVERY REQUEST', b'XNU_SCTLR_EL1=',
                          b'[A31-XNU] BOOT EXCEPTION', b'[A31-XNU] STACKS NEXT',
