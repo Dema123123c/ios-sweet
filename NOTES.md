@@ -8,6 +8,20 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V5 EARLY-ENTRY PACKAGE READY, not yet written at this checkpoint.
+  Source 4179710bdb4bfb52328177f0857c02b8b714d70f, CI 39930336606 SUCCESS:
+  37 Python checks, C ASan/UBSan, normal EL1/EL2 QEMU PASS, injected early
+  undefined instruction caught at both EL1/EL2 with expected ESR 02000000.
+  Artifact research/a31-early-entry-ci-4179710. Native Image SHA
+  a1eb7c61e5284d9c85e66ae0f92857bd62feea48ef3dc3a3933b702b169e15f1.
+  Private package outputs/a31-diagnostic-early-v5/diagnostic/boot.img SHA
+  1b715df85d4bf8dea5bc85ee48f82b4cd45239601cfeec2f187f9499aec70111,
+  33554432 bytes. Exact original BOOT restore/TAR alongside it.
+  Fresh preflight research/a31-early-entry-attempt rechecks current V4,
+  recovery, both vbmetas, target p35 size, unlocked/orange FDT and pstore.
+  Existing experimental BOOT bring-up authorization applies; only BOOT
+  may change. No native result yet. Next write/readback/reboot then manual
+  short Power continuation, 30s wait and TWRP return; collect before reboot.
 - RESUMED 2026-10-23 on explicit user request. A31 is in TWRP; user says
   attempted poweroff last night restarted itself and looped overnight.
   Fresh twice-read capture research/a31-resume-20261023-capture confirms
