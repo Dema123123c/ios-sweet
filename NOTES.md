@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V15 HIGH-KVA ENTRY CONTROL READY, not flashed at checkpoint. QEMU
+  CI39961073177 SUCCESS, exact highVA BRKfffffe0007ad4fe8/M=1.
+  Patched kernel9fe0365a8c37678498263c4d1cffa301fb0230abe58ef1c017c8ddc537e3d8d0
+  is original V11 plus one audited SUBsp replacement at arm_init entry.
+  Sourced569095084ec0f87f577d1d477a67636a033cadb, native Image06a33b95...8c7d768,
+  payload a53f4374612553bd268e1ce0e6c298663df771733dd7d304ad57b917588d2a58.
+  outputs/a31-c-entry-v15/diagnostic/boot.img 32MiB SHA
+  f5ff478b796ba9f7d85748fc8d6d194f6b1f889d0fc2ebe26756dcb14941725f.
+  Fresh currentV14/recovery/vbmeta/unlocked/pstore gates PASS, restore
+  retained. Private research/a31-c-entry-attempt. Native test must require
+  exact BRK ESR/ELR/SCTLR M=1. This stops BEFORE C prologue/stack stores.
 - V14 ACTUAL NATIVE POST-MMU CHECKPOINT PASS. Pstore expectedc94a46a
   ENTRY/STACKS/TABLES/MMU NEXT, BRK ESRf2000a31 at ELR10148e500,
   SCTLR3454593d (M/C/I enabled), sourceSPfffffe00080b4000, slot0, software
