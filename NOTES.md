@@ -8,6 +8,18 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V8 WRITTEN AND TEST STARTED 2026-10-23 10:31:24 UTC. BOOT p35 only,
+  SHA59f8a8e0...6205357, full raw readback matched; TWRP and both vbmetas
+  read back unchanged. Point-of-write FDT still unlocked/orange and memory/
+  pstore checks PASS. Operation research/a31-xnu-entry-attempt/operation.json
+  has write_attempted/readback_matches/reboot_issued=true, restore_pending=true.
+  Phone rebooted. User asked only short Power at boot warning(s), no forced
+  key combo. Await automatic TWRP return and read logs IMMEDIATELY before
+  any more reboot. Expected loader build4deaf9463f212fcc27a606e54bc90feff000642e;
+  collector research/a31-v8-entry-logs. Entry requires XNU physical marker,
+  first-C checkpoint PASS and recovery request in the same loader session;
+  native V8 result is still UNKNOWN at this checkpoint. Do not call this
+  iOS boot, or infer kernel entry merely from a TWRP return.
 - V8 ENTRY-CHECK PACKAGE READY, not written at this checkpoint. Kernel
   source5a9faea8de0925469caadade25cc5aa3ce5227bc, macOS CI39938138036
   SUCCESS, kernel17205128B SHA405fed8ecc1e0753c85d4587e45d0d3814638bcbab5b70f02e50c3a558d674fc.
