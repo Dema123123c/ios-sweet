@@ -34,6 +34,31 @@ and userland. A working display or iOS installation is not established.
 
 ## Checkpoint design and historical controls
 
+V19 adds patch 0087. Stage 21 now returns once; the original boot-argument
+copy and `cpu_data_init(&BootCpuData)` execute. Before `PE_init_platform`,
+the diagnostic compares every copied boot-argument byte with the original
+and verifies initial CPU flags, interrupt state, pending AST, rtcPop,
+register-map address and sleep token. Stage 22 emits CPU-DATA-CHECK PASS
+only in the validated stage sequence, then uses the existing recovery reset.
+It does not initialize CPU topology, scheduling, VM or phone drivers.
+The collector requires the ordered prior stages and this new completion
+within one matching session. Native V19 results are pending.
+
+Kernel CI39969205795, shim CI39969205881 and actual-kernel QEMU
+CI39971077759 passed at `57397c01982c9c2ee3396f182b5b050940567b57`.
+Linked disassembly confirms the 736-byte argument copy, CPU data call,
+byte/field checks and stage 22 before the platform call. V19 was written
+to BOOT and fully read back; SHA-256:
+`ecffffc8f9d6d33e4b9bf79b40dc955a2dda2cb3ae3f97a18e5feece30e2ecdb`.
+Recovery and both vbmetas were checked unchanged.
+
+The next platform boundary needs a clock-policy fix first: `mka31adt.py`
+omits the unknown bus frequency, while `pe_identify_machine()` uses that
+zero frequency in a division. This is undefined C behavior and produces
+invalid clock ratios; no native platform crash is established by that
+source audit. V19 deliberately stops before this code. Do not invent an
+A31 bus frequency to make the calculation pass.
+
 V18 advances the boundary using patch 0086: the first validated C hook
 returns once; stage 21 runs immediately after `arm_setup_pre_sign()` and
 `arm_slide_rebase_and_sign_image()`. It stops before copying boot arguments,

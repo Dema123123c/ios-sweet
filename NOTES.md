@@ -8,6 +8,38 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V19 NATIVE TEST STARTED 2026-10-23 14:38:11 UTC, result pending.
+  Source/session57397c01982c9c2ee3396f182b5b050940567b57. Kernel
+  CI39969205795 SUCCESS (17205504B SHA
+  aeb8cea83c7d50c1a0cc8bb7909b185a997d123eb9af5a37636639b87110fda4).
+  Actual reset SMC VAfffffe0007485668; disassembly confirms 736-byte
+  memmove, cpu_data_init, byte comparison and CPU-field checks, stage22
+  before PE_init_platform. Shim CI39969205881 SUCCESS (66 tests plus
+  20 fault/12 EL1/EL2 controls). Actual-kernel QEMU CI39971077759 SUCCESS,
+  ordered stage1/21/22 and CPU-DATA-CHECK PASS. Its missing Samsung SRAM
+  causes expected RECOVERY FAILED; firmware reset requires native evidence.
+  outputs/a31-cpu-data-v19/diagnostic/boot.img 32MiB SHA
+  ecffffc8f9d6d33e4b9bf79b40dc955a2dda2cb3ae3f97a18e5feece30e2ecdb.
+  Image44a32c4fbdc61acf3ca8b2e46bca65670a666ea517c4b6d6ac53d4f3f47fdde9,
+  payload0fdfbddd28233cbcb02ec3d282705af07a0523dce9ff8b43241779f8c0ed843c.
+  Fresh V18/recovery/vbmeta/unlocked/pstore gates PASS; full BOOT write and
+  readback PASS; recovery/vbmetas unchanged. No BRK/watchdog. Private
+  research/a31-cpu-data-attempt. Await user short-Power/automatic TWRP;
+  collect new research/a31-v19-cpu-data-logs matching57397c0. V19 retained;
+  original restore available. Do not infer native success from QEMU.
+- V19 source57397c01982c9c2ee3396f182b5b050940567b57 pushed. Kernel
+  CI39969205795 queued for macos-14; shim CI39969205881 running. 66 local
+  Python tests PASS. Real patched arm_init.c AND sweet_early.c cross-compile
+  locally to arm64 Mach-O with actual generated A31 headers/CI flags; no
+  errors (newer NDK warns about existing buffer accesses). Private commands
+  and logs research/a31-cpu-data-attempt. await_kernel.py waits for SUCCESS,
+  verifies linked reset, downloads kernel then dispatches cpu_data QEMU.
+  V19 private prepare/test scripts not executed; expected current V18 BOOT.
+  NEXT PLATFORM BLOCKER FOUND during audit: mka31adt omits bus-frequency;
+  pe_identify_machine zeroes clock info and divides by bus_clock_rate_hz.
+  PE_init_platform(FALSE) reaches it, but V19 stops before that call. Need
+  explicit unknown-bus guarded ratios rather than invented frequency before
+  advancing to platform. Audit research/a31-cpu-data-attempt/platform-audit.json.
 - NEXT V19 BOOT-ARGS/CPU-DATA SOURCE PREPARED (native not tested yet).
   Patch0087 lets stage21 return once, then runs original const_boot_args
   copy and cpu_data_init. Byte-compares copied boot arguments to original
