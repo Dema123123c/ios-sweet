@@ -8,6 +8,37 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V23 NATIVE FINAL VM TABLES PASS, 2026-10-26. Source2dd5a3519740da42b2103ab97454259775abcae9;
+  kernel40357691472 SUCCESS, shim40357697386 SUCCESS, actual-kernel normal
+  and post-TTBR0 BRK QEMU40360455620 SUCCESS. Kernel SHA256
+  95a7ef88fb3bd4369a1a837d0d5d4773a309c6734e9f1bea9a7c6204e78f704f.
+  BOOT5426b2ced6736821dfdfd1d13dab69573d865e6ca315894962f21f9b34dd4c7b
+  written ONLYp35, full readback and post-test BOOT/recovery/both-vbmeta hashes
+  passed. User automatic TWRP; matching pstore xnu_vm_tables_pass, no native
+  exception/failure. Last_kmsg loader-only. VBARfffffe0007490800 matches linked
+  symbol, TTBR01024d0000, EL1/SCTLR3454593d/13MHz, both high aliases exact,
+  low aliases invalid. Private raw evidence research/a31-v23-vm-logs/report.json;
+  operation/preflight/native-package in a31-vm-attempt/outputs/a31-vm-v23.
+  Phone remains in TWRP with V23 deliberately retained, stock/V22 restore
+  images kept; no queued phone writes or required Android restore.
+  Boundary BEFOREkva_active/pmap_bootstrap; not full VM/GPU/iOS.
+  NEXT: grouped kva_active/table-pointer rebinding/pmap bootstrap, audit
+  allocator/UAT/SART/ASID paths and bootstrap fatal-relay lifetime. Maintain
+  both actual-kernel QEMU normal/fault gates. See docs/A31-VM-CHECKPOINT.md.
+
+- V23 migration retry source2dd5a3519740da42b2103ab97454259775abcae9:
+  kernel40357691472 running, shim40357697386 SUCCESS. Private await_kernel
+  automatically dispatches both VM controls only after successful linked
+  kernel validation. prepare/test/capture scripts use these exact IDs/source.
+  Intermediate archive outputs/a31-v23-work-20261026/a31-v23-work.zip verified
+  CRC plus every-entry SHA256; initial56entries/24430170B, SHA256
+  6d4aceec26b35b40f1f58e3cbed8a0a4d2c6ece24bd96b02ea183c0e5d3d57a6.
+  save_checkpoint.py refreshes it after further evidence; check adjacent
+  manifest for latest archive hash. Not a native V23 success checkpoint.
+  Fresh source comparison from failed migration tree confirms ONLY the two
+  unrelated private SDK TargetConditionals.h copies changed; all other
+  original headers and IIG definitions match V22. Phone unchanged in TWRP.
+
 - 2026-10-26 CI migration: macos-14 run40352387969 failed before starting
   any steps during GitHub's scheduled Oct26 14:00UTC brownout. Move to
   macos-15-intel/Xcode16; preserve XNU8796 IORPC ABI via exact generated
