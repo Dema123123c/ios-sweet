@@ -38,6 +38,8 @@ jobs:
           research/a31-diag/payload-test research/a31-diag/fixture.payload 0x50000000 0x4000000
           clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_entry_io_test.c -o research/a31-diag/xnu-io-test
           research/a31-diag/xnu-io-test
+          clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_pmap_bounds_test.c -o research/a31-diag/pmap-bounds-test
+          research/a31-diag/pmap-bounds-test
           clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_final_io_test.c -o research/a31-diag/final-io-test
           research/a31-diag/final-io-test
       - name: A31 Python format and log checks

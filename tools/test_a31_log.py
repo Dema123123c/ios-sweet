@@ -50,6 +50,24 @@ class A31LogTests(unittest.TestCase):
               b'[A31-XNU] VM-LOW-ALIASES INVALID\n[A31-XNU] VM-TABLES-CHECK PASS\n')
         vm_good = runtime_good.replace(b'[A31-XNU] RECOVERY REQUEST\n', vm + b'[A31-XNU] RECOVERY REQUEST\n')
         self.assertEqual(inspect(BEGIN + vm_good, BUILD)['status'], 'xnu_vm_tables_pass')
+        pmap = (b'[A31-XNU] C STAGE 11: physmap table pointers rebound\n[A31-XNU] TABLE-POINTERS-CHECK PASS\n'
+                b'[A31-XNU] C STAGE 12: calling pmap_bootstrap\n[A31-XNU] PMAP-ENTER-CHECK PASS\n'
+                b'XNU_PMAP_MEM_BYTES=0x000000003fd00000\n'
+                b'XNU_PMAP_ALLOC_BEGIN=0x0000000102600000\nXNU_PMAP_ALLOC_END=0x0000000102700000\n'
+                b'XNU_PMAP_ALLOC_LIMIT=0x000000013fd00000\nXNU_PMAP_ROOT=0x0000000102504000\n'
+                b'XNU_PMAP_MAX_ASIDS=0x0000000000010000\n'
+                b'[A31-XNU] C STAGE 24: pmap structures initialized\n[A31-XNU] PMAP-STRUCTURES-CHECK PASS\n'
+                b'[A31-XNU] C STAGE 13: pmap_bootstrap done\n[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS\n')
+        pmap_good = vm_good.replace(b'[A31-XNU] RECOVERY REQUEST\n', pmap + b'[A31-XNU] RECOVERY REQUEST\n')
+        self.assertEqual(inspect(BEGIN + pmap_good, BUILD)['status'], 'xnu_pmap_bootstrap_pass')
+        for bad in [vm_good, pmap + vm_good,
+                    pmap_good.replace(b'[A31-XNU] TABLE-POINTERS-CHECK PASS\n', b''),
+                    pmap_good.replace(b'0x0000000102700000', b'0x0000000140000000'),
+                    pmap_good.replace(b'0x0000000000010000', b'0x0000000000010001'),
+                    pmap_good.replace(b'0x0000000102504000', b'0x0000000000000000'),
+                    pmap_good + b'[A31-XNU] PMAP-BOOTSTRAP-CHECK FAIL\n',
+                    pmap_good + b'[A31-XNU] BOOT EXCEPTION\n']:
+            self.assertFalse(inspect(BEGIN + bad, BUILD)['sessions'][0]['xnu_pmap_bootstrap_pass'])
         for bad in [runtime_good, vm + runtime_good,
                     vm_good.replace(b'VM-LOW-ALIASES INVALID', b'VM-LOW-ALIASES VALID'),
                     vm_good.replace(b'0xfffffe0002045c00', b'0x000000000010dc00'),

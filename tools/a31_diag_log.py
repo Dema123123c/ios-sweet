@@ -29,7 +29,7 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
-        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|CPU-INIT-CHECK FAIL|VM-TABLES-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|CPU-INIT-CHECK FAIL|VM-TABLES-CHECK FAIL|PMAP-BOOTSTRAP-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
         entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
             '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
@@ -99,8 +99,30 @@ def inspect(data, expected_build):
                    fields.get('XNU_FINAL_SRAM_VA') == '0xfffffe0002045c00' and
                    int(fields.get('XNU_VBAR_EL1', '0'), 16) >= 0xffff000000000000 and
                    int(fields.get('XNU_TTBR0_EL1', '0'), 16) != 0)
+        pmap_markers = ['[A31-XNU] VM-TABLES-CHECK PASS',
+                        '[A31-XNU] C STAGE 11: physmap table pointers rebound',
+                        '[A31-XNU] TABLE-POINTERS-CHECK PASS',
+                        '[A31-XNU] C STAGE 12: calling pmap_bootstrap',
+                        '[A31-XNU] PMAP-ENTER-CHECK PASS',
+                        '[A31-XNU] C STAGE 24: pmap structures initialized',
+                        '[A31-XNU] PMAP-STRUCTURES-CHECK PASS',
+                        '[A31-XNU] C STAGE 13: pmap_bootstrap done',
+                        '[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS', '[A31-XNU] RECOVERY REQUEST']
+        pmap_positions = [session.find(line + '\n') for line in pmap_markers]
+        begin, end, limit = [int(fields.get('XNU_PMAP_ALLOC_' + name, '0'), 16)
+                             for name in ('BEGIN', 'END', 'LIMIT')]
+        memory, root_pa, asids = [int(fields.get('XNU_PMAP_' + name, '0'), 16)
+                                  for name in ('MEM_BYTES', 'ROOT', 'MAX_ASIDS')]
+        pmap_pass = (vm_pass and all(p >= 0 for p in pmap_positions) and
+                     pmap_positions == sorted(pmap_positions) and
+                     0x4000000 <= memory <= 0x3fd00000 and not memory & 0x3fff and
+                     0x100000000 <= begin < end <= limit <= 0x100000000 + memory and
+                     not end & 0x3fff and root_pa != 0 and not root_pa & 0x3fff and
+                     0 < asids <= 65536 and not asids & 63)
         if entry_failure:
             status = 'fail'
+        elif pmap_pass:
+            status = 'xnu_pmap_bootstrap_pass'
         elif vm_pass:
             status = 'xnu_vm_tables_pass'
         elif runtime_pass:
@@ -129,6 +151,7 @@ def inspect(data, expected_build):
                       'xnu_cpu_bootstrap_pass': bootstrap_pass,
                       'xnu_cpu_init_pass': runtime_pass,
                       'xnu_vm_tables_pass': vm_pass,
+                      'xnu_pmap_bootstrap_pass': pmap_pass,
                       'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
                       'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})

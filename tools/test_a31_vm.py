@@ -20,6 +20,19 @@ class FinalVMSourceTests(unittest.TestCase):
             added = ''.join(lines)
             self.assertEqual(added, (ROOT / 'shim/a31' / local).read_text())
 
+    def test_shared_pmap_sources_are_exact_patch_copies(self):
+        patch = (ROOT / 'xnu/patches/0092-a31-pmap-bootstrap-checkpoint.patch').read_text()
+        for local, kernel in [('xnu_pmap_bounds.h', 'a31_pmap_bounds.h'),
+                              ('xnu_pmap_trap.inc', 'a31_pmap_trap.inc')]:
+            block = patch.split('+++ b/osfmk/arm64/' + kernel + '\n', 1)[1]
+            lines = []
+            for line in block.splitlines(keepends=True):
+                if line.startswith('--- '):
+                    break
+                if line.startswith('+'):
+                    lines.append(line[1:])
+            self.assertEqual(''.join(lines), (ROOT / 'shim/a31' / local).read_text())
+
     def test_relay_keeps_mmu_on_until_branching_to_existing_physical_handler(self):
         text = (ROOT / 'shim/a31/xnu_final_vectors.inc').read_text()
         self.assertNotIn('msr sctlr_el1', text)

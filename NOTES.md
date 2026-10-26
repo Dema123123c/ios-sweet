@@ -8,6 +8,29 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- 2026-10-26 USER BACKUP REQUEST: important material on BOTH PC and private
+  Google Drive mount G:/Мой диск/A31-Backups/2026-10-26, never public GitHub.
+  53 physical firmware/service/eMMC-boot partitions (including unaliased p34),
+  8687452160B, verified phone SHA256 before/after plus local/cloud-mount copies.
+  Local mirror: workspace outputs/a31-partitions-backup-20261026. Both have
+  primary/secondary GPT raw regions, stock BOOT, manifests/SHA256SUMS/README;
+  V23 checkpoint archive copied and hash-verified on cloud mount, existing
+  local archive retained. userdata and authenticated RPMB NOT included.
+  Primary GPT header/entry CRC valid; secondary header valid but entry-array
+  CRC ALREADY mismatched on device (both independent reads identical). Saved
+  unchanged; no GPT repair or phone write. Remote server upload completion
+  has not been independently verified; DriveFS handles syncing. Private
+  backup scripts research/a31-backup-20261026; no keys/identity dumps in Git.
+- V24 preparation: new0092/private tree extends through rebound table pointers
+  and pmap_bootstrap, adds always-on RAM guards before metadata/ASID clears,
+  actual pmap/ASID/TTBR1 validation and separate post-pmap BRK#a32 control.
+  Four modified C files and separate Darwin BRK#a32 assembly locally compile
+  PASS;0092 reverse apply check PASS. Parser/order/bounds negative tests and
+  exact source-mirror tests integrated;76 Python tests PASS (one host C test
+  skipped locally). CI will run bounded-allocation host C under ASan/UBSan,
+  normal full-pmap QEMU plus pre/post-pmap exact-symbol fault controls.
+  No V24 package or native write yet. V23 remains in TWRP.
+
 - FINAL V23 CHECKPOINT ARCHIVE verified: workspace outputs/a31-v23-work-20261026/
   a31-v23-checkpoint.zip, 375entries/303877194B, SHA256
   cb24080897c6c15b872d7ef1cd99eb915a5db609733a1e47f29fcd882ad874ba.

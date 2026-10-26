@@ -76,11 +76,14 @@ jobs:
           assert report['source'] == run['headSha']
           digest = hashlib.sha256((p / 'kernel.development.a31').read_bytes()).hexdigest()
           assert digest == report['sha256']
-          if report['kind'] == 'A31 XNU final-VM-table checkpoint only':
+          if report['kind'] in ('A31 XNU final-VM-table checkpoint only', 'A31 XNU pmap-bootstrap checkpoint only'):
               assert report['reset_code']['machine_code_verified'] is True
               assert report['vm_code']['trap_opcode'] == '0xd4214620'
               with open(os.environ['GITHUB_ENV'], 'a') as f:
                   f.write('A31_VM=1\n')
+                  if report['kind'] == 'A31 XNU pmap-bootstrap checkpoint only':
+                      assert report['pmap_code']['trap_opcode'] == '0xd4214640'
+                      f.write('A31_PMAP=1\n')
           elif os.environ['POST_REBASE'] == 'true' or os.environ['CPU_DATA'] == 'true' or os.environ['PLATFORM'] == 'true' or os.environ['CPU_BOOTSTRAP'] == 'true' or os.environ['RUNTIME'] == 'true':
               # Bind kernel provenance to its successful run above; test-only
               # fixes may run against that same byte-identical kernel later.
@@ -95,10 +98,22 @@ jobs:
               assert digest == '3486ac517fce205e62c5d5b3e95de10152850543fb96c6c6a1db9b63618c0c50'
           PY
       - name: Observe actual linked XNU bootstrap
-        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }} ${{ inputs.post_rebase && '--post-rebase' || '' }} ${{ inputs.cpu_data && '--cpu-data' || '' }} ${{ inputs.platform && '--platform' || '' }} ${{ inputs.cpu_bootstrap && '--cpu-bootstrap' || '' }} ${{ inputs.runtime && '--runtime' || '' }} ${{ env.A31_VM == '1' && '--vm' || '' }}
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/bootstrap-observation ${{ inputs.pre_mmu_trap && '--pre-mmu-trap' || '' }} ${{ inputs.post_mmu_trap && '--post-mmu-trap' || '' }} ${{ inputs.c_entry_trap && '--c-entry-trap' || '' }} ${{ inputs.c_prologue_trap && '--c-prologue-trap' || '' }} ${{ inputs.post_rebase && '--post-rebase' || '' }} ${{ inputs.cpu_data && '--cpu-data' || '' }} ${{ inputs.platform && '--platform' || '' }} ${{ inputs.cpu_bootstrap && '--cpu-bootstrap' || '' }} ${{ inputs.runtime && '--runtime' || '' }} ${{ env.A31_PMAP == '1' && '--pmap' || env.A31_VM == '1' && '--vm' || '' }}
       - name: Verify final high-VBAR fault relay after TTBR0 invalidation
         if: env.A31_VM == '1'
         run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/vm-fault-observation --vm --vm-fault
+      - name: Verify high-VBAR fault relay after pmap bootstrap
+        if: env.A31_PMAP == '1'
+        run: python3 tools/a31_bootstrap_qemu.py --kernel research/v11-kernel/kernel.development.a31 --out research/pmap-fault-observation --pmap --pmap-fault
+      - uses: actions/upload-artifact@v4
+        if: always() && env.A31_PMAP == '1'
+        with:
+          name: bootstrap-pmap-fault
+          path: |
+            research/pmap-fault-observation/monitor.log
+            research/pmap-fault-observation/pstore.txt
+            research/pmap-fault-observation/report.json
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         if: always() && env.A31_VM == '1'
         with:

@@ -1,0 +1,234 @@
+A31: grouped rebound tables, pmap bootstrap and bounded metadata allocations.
+
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -2238,6 +2238,11 @@
+ 	// global table pointers may need to be different due to physical aperture remapping
+ 	cpu_tte = (tt_entry_t*)(phystokv(cpu_ttep));
+ 	invalid_tte = (tt_entry_t*)(phystokv(invalid_ttep));
++#if defined(A31)
++	if (kvtophys((vm_offset_t)cpu_tte) != cpu_ttep ||
++	    kvtophys((vm_offset_t)invalid_tte) != invalid_ttep)
++		panic("A31 rebound table pointer translation mismatch");
++#endif
+ 	sweet_early_mark(11, "physmap table pointers rebound");
+ 
+ 	// From here on out, we're off the bootstrap translation tables.
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -1121,3 +1121,7 @@
+ #if defined(A31)
+ #include "a31_final_vectors.inc"
+ #endif
++
++#if defined(A31)
++#include "a31_pmap_trap.inc"
++#endif
+--- a/osfmk/arm/pmap/pmap_data.c
++++ b/osfmk/arm/pmap/pmap_data.c
+@@ -1,3 +1,6 @@
++#if defined(A31)
++#include <arm64/a31_pmap_bounds.h>
++#endif
+ /*
+  * Copyright (c) 2020-2021 Apple Inc. All rights reserved.
+  *
+@@ -570,6 +573,15 @@
+ void
+ pmap_data_bootstrap(void)
+ {
++#if defined(A31)
++#if XNU_MONITOR || HAS_GUARDED_IO_FILTER
++#error A31 pmap checkpoint requires the audited non-PPL configuration
++#endif
++	const pmap_paddr_t a31_data_start = avail_start;
++	if (gPhysBase != 0x100000000ULL ||
++	    !a31_xnu_pmap_bounds(mem_size, avail_start, avail_start, avail_end))
++		panic("A31 pmap data entry bounds");
++#endif
+ 	/**
+ 	 * Set ptd_per_page to the maximum number of (pt_desc_t + ptd_info_t) we can
+ 	 * fit in a single page. We need to allow for some padding between the two,
+@@ -642,6 +654,9 @@
+ 
+ 	/* Scan the device tree and figure out how many PPL-owned I/O regions there are. */
+ 	const vm_size_t io_attr_table_size = pmap_compute_io_rgns();
++#if defined(A31)
++	if (io_attr_table_size) panic("A31 checkpoint must not publish PPL I/O regions");
++#endif
+ 
+ #if HAS_GUARDED_IO_FILTER
+ 	/* Scan the device tree for the size of pmap-io-filter entries. */
+@@ -693,6 +708,10 @@
+ 	pt_desc_t *ptd_root_table = (pt_desc_t *)phystokv(avail_start);
+ 	avail_start = round_page(avail_start + ptd_root_table_size);
+ 
++#if defined(A31)
++	if (!a31_xnu_pmap_bounds(mem_size, a31_data_start, avail_start, avail_end) ||
++	    (avail_start & (ARM_PGBYTES - 1))) panic("A31 pmap data allocation bounds");
++#endif
+ 	memset((char *)phystokv(pmap_struct_start), 0, avail_start - pmap_struct_start);
+ 
+ 	/* This function assumes that ptd_root_table has been zeroed out already. */
+--- a/osfmk/arm/pmap/pmap.c
++++ b/osfmk/arm/pmap/pmap.c
+@@ -1,3 +1,6 @@
++#if defined(A31)
++#include <arm64/a31_pmap_bounds.h>
++#endif
+ /*
+  * Copyright (c) 2011-2021 Apple Inc. All rights reserved.
+  *
+@@ -2096,6 +2099,12 @@
+ 	vm_offset_t vstart)
+ {
+ 	vm_map_offset_t maxoffset;
++#if defined(A31)
++	const pmap_paddr_t a31_pmap_start = avail_start;
++	if (gPhysBase != 0x100000000ULL ||
++	    !a31_xnu_pmap_bounds(mem_size, avail_start, avail_start, avail_end))
++		panic("A31 pmap bootstrap entry bounds");
++#endif
+ 
+ 	lck_grp_init(&pmap_lck_grp, "pmap", LCK_GRP_ATTR_NULL);
+ 
+@@ -2202,6 +2211,10 @@
+ 	asid_bitmap = (bitmap_t*)phystokv(avail_start);
+ 	avail_start = round_page(avail_start + asid_table_size);
+ 
++#if defined(A31)
++	if (!a31_xnu_pmap_bounds(mem_size, pmap_struct_start, avail_start, avail_end))
++		panic("A31 ASID bitmap allocation bounds");
++#endif
+ 	memset((char *)phystokv(pmap_struct_start), 0, avail_start - pmap_struct_start);
+ 
+ 	vm_first_phys = gPhysBase;
+@@ -2272,6 +2285,23 @@
+ 	 * this is important.
+ 	 */
+ 	avail_start = round_page(avail_start);
++#if defined(A31)
++	uint64_t a31_ttbr1;
++	__asm__ volatile("mrs %0, ttbr1_el1" : "=r"(a31_ttbr1));
++	if (!a31_xnu_pmap_bounds(mem_size, a31_pmap_start, avail_start, avail_end) ||
++	    (avail_start & (ARM_PGBYTES - 1)) || !asid_bitmap ||
++	    !pmap_max_asids || (pmap_max_asids & 63) ||
++	    kernel_pmap->tte != cpu_tte || kernel_pmap->ttep != cpu_ttep ||
++	    kernel_pmap->type != PMAP_TYPE_KERNEL || !kernel_pmap->is_64bit ||
++	    !kernel_pmap->nx_enabled || kernel_pmap->hw_asid || kernel_pmap->sw_asid ||
++	    os_atomic_load(&kernel_pmap->ref_count, relaxed) != 1 ||
++	    (a31_ttbr1 & TTBR_BADDR_MASK) != cpu_ttep ||
++	    !bitmap_test(asid_bitmap, 0) || !bitmap_test(asid_bitmap, pmap_max_asids - 1) ||
++	    vm_first_phys != gPhysBase || vm_last_phys != trunc_page(avail_end))
++		panic("A31 pmap bootstrap result mismatch");
++	extern void a31_pmap_checkpoint(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
++	a31_pmap_checkpoint(mem_size, a31_pmap_start, avail_start, avail_end, cpu_ttep, pmap_max_asids);
++#endif
+ }
+ 
+ #if XNU_MONITOR
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -147,11 +147,13 @@
+ #include <kern/misc_protos.h>
+ 
+ #include <arm64/a31_final_io.h>
++#include <arm64/a31_pmap_bounds.h>
+ #include <arm64/proc_reg.h>
+ #include <pexpert/pexpert.h>
+ extern unsigned char a31_final_vectors[];
+ extern void a31_vm_control_trap(void) __attribute__((noreturn));
+-/* Stop after final TTBR1 activation and TTBR0 invalidation, before pmap bootstrap. */
++extern void a31_pmap_control_trap(void) __attribute__((noreturn));
++/* Stop after pmap_bootstrap returns, before further arm_vm_init allocations. */
+ static unsigned int a31_panicking;
+ static unsigned int a31_entry_seen;
+ static unsigned int a31_vm_fault_control;
+@@ -305,8 +307,32 @@
+         a31_hex("XNU_TTBR0_EL1=", ttbr0);
+         a31_hex("XNU_VBAR_EL1=", vbar);
+         a31_string("[A31-XNU] VM-LOW-ALIASES INVALID\n");
+-        if (a31_vm_fault_control) a31_vm_control_trap();
++        if (a31_vm_fault_control == 1) a31_vm_control_trap();
+         a31_string("[A31-XNU] VM-TABLES-CHECK PASS\n");
++        a31_entry_seen = 12;
++        return;
++    }
++    if ((stage == 11 && a31_entry_seen == 12) ||
++        (stage == 12 && a31_entry_seen == 13) ||
++        (stage == 24 && a31_entry_seen == 14) ||
++        (stage == 13 && a31_entry_seen == 15)) {
++        if (current_el != 4 || !(sctlr & 1) || frequency != 13000000 ||
++            !a31_translation_matches(A31_FINAL_LOG_VA, 0x4d05f000) ||
++            !a31_translation_matches(A31_FINAL_SRAM_VA, 0x10dc00) ||
++            !(a31_translation(0x4d05f000) & 1) || !(a31_translation(0x10dc00) & 1)) {
++            a31_string("[A31-XNU] PMAP-BOOTSTRAP-CHECK FAIL\n");
++            a31_return();
++        }
++        if (stage == 13) {
++            if (a31_vm_fault_control == 2) a31_pmap_control_trap();
++            a31_string("[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS\n");
++            a31_return();
++        }
++        ++a31_entry_seen;
++        a31_string(stage == 11 ? "[A31-XNU] TABLE-POINTERS-CHECK PASS\n" :
++                   stage == 12 ? "[A31-XNU] PMAP-ENTER-CHECK PASS\n" :
++                                 "[A31-XNU] PMAP-STRUCTURES-CHECK PASS\n");
++        return;
+     } else {
+         a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
+         a31_string("[A31-XNU] REBASE-CHECK FAIL\n");
+@@ -315,8 +341,27 @@
+         a31_string("[A31-XNU] CPU-BOOTSTRAP-CHECK FAIL\n");
+         a31_string("[A31-XNU] CPU-INIT-CHECK FAIL\n");
+         a31_string("[A31-XNU] VM-TABLES-CHECK FAIL\n");
++        a31_string("[A31-XNU] PMAP-BOOTSTRAP-CHECK FAIL\n");
+     }
+     a31_return();
++}
++
++void
++a31_pmap_checkpoint(uint64_t bytes, uint64_t begin, uint64_t end,
++    uint64_t limit, uint64_t root, uint64_t asids)
++{
++    if (!a31_xnu_pmap_bounds(bytes, begin, end, limit) || end <= begin ||
++        !root || (root & 0x3fff) || !asids || asids > 65536 || (asids & 63)) {
++        a31_string("[A31-XNU] PMAP-BOOTSTRAP-CHECK FAIL\n");
++        a31_return();
++    }
++    a31_hex("XNU_PMAP_MEM_BYTES=", bytes);
++    a31_hex("XNU_PMAP_ALLOC_BEGIN=", begin);
++    a31_hex("XNU_PMAP_ALLOC_END=", end);
++    a31_hex("XNU_PMAP_ALLOC_LIMIT=", limit);
++    a31_hex("XNU_PMAP_ROOT=", root);
++    a31_hex("XNU_PMAP_MAX_ASIDS=", asids);
++    sweet_early_mark(24, "pmap structures initialized");
+ }
+ 
+ void
+--- /dev/null
++++ b/osfmk/arm64/a31_pmap_bounds.h
+@@ -0,0 +1,14 @@
++#ifndef A31_XNU_PMAP_BOUNDS_H
++#define A31_XNU_PMAP_BOUNDS_H
++#include <stdint.h>
++
++/* The CPU0 fixture manages at most this observed, contiguous A31 RAM bank. */
++static inline int
++a31_xnu_pmap_bounds(uint64_t bytes, uint64_t start, uint64_t end, uint64_t limit)
++{
++    const uint64_t base = UINT64_C(0x100000000);
++    return bytes >= UINT64_C(0x4000000) && bytes <= UINT64_C(0x3fd00000) &&
++        !(bytes & UINT64_C(0x3fff)) && base <= start && start <= end &&
++        end <= limit && limit <= base + bytes;
++}
++#endif
+--- /dev/null
++++ b/osfmk/arm64/a31_pmap_trap.inc
+@@ -0,0 +1,6 @@
++    .text
++    .balign 4
++    .globl EXT(a31_pmap_control_trap)
++LEXT(a31_pmap_control_trap)
++    brk #0xa32
++    b EXT(a31_pmap_control_trap)
