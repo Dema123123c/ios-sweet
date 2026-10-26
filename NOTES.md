@@ -8,6 +8,17 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- FINAL V23 CHECKPOINT ARCHIVE verified: workspace outputs/a31-v23-work-20261026/
+  a31-v23-checkpoint.zip, 375entries/303877194B, SHA256
+  cb24080897c6c15b872d7ef1cd99eb915a5db609733a1e47f29fcd882ad874ba.
+  CRC and every-entry hash checked. Source snapshot2cb36aeeafbdbee480dfe0cb50397d4cdf6e2495;
+  executed kernel/shim source2dd5a3519740da42b2103ab97454259775abcae9.
+  Includes native package, raw native/QEMU evidence, private preflight/operation,
+  IIG baseline, original/V22 restore images and next-pmap audit. Adjacent
+  manifest.json/README.txt identify contents. Kept separate from the mutable
+  work.zip output of save_checkpoint.py. Phone live ADB recovery confirmed;
+  V23 intentionally retained, no pending writes/builds or required restore.
+
 - V23 NATIVE FINAL VM TABLES PASS, 2026-10-26. Source2dd5a3519740da42b2103ab97454259775abcae9;
   kernel40357691472 SUCCESS, shim40357697386 SUCCESS, actual-kernel normal
   and post-TTBR0 BRK QEMU40360455620 SUCCESS. Kernel SHA256
