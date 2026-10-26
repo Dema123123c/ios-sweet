@@ -41,7 +41,7 @@ def bootstrap_checkpoint(kernel, target, post=False, c_entry=False, prologue=Fal
             'original_instruction': hex(original), 'replacement_instruction': '0xd4214620'}
 
 
-def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, rebase=False, cpu_data=False, platform=False, bootstrap=False, runtime=False):
+def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, rebase=False, cpu_data=False, platform=False, bootstrap=False, runtime=False, vm=False, vm_fault=False):
     out.mkdir(parents=True, exist_ok=False)
     checkpoint = None
     if trap or post or c_entry or prologue:
@@ -54,7 +54,7 @@ def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, reba
                     ('dram-base', 0, struct.pack('<Q', 0x100000000)),
                     ('dram-size', 0, struct.pack('<Q', 0x3fd00000))]
     root.children = [chosen]
-    if platform or bootstrap or runtime:
+    if platform or bootstrap or runtime or vm:
         import mkadt
         root = mkadt.build(qemu=True)
         root.props = [(k, f, b'samsung,a31\0mediatek,MT6768\0' if k == 'compatible' else v)
@@ -72,7 +72,7 @@ def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, reba
     tree = out / 'synthetic.adt'
     tree.write_bytes(adt.serialize(root))
     payload = out / 'xnu.payload'
-    build(kernel, tree, payload, 'debug=0xc serial=3 cpus=1 keepsyms=1', entry_checkpoint=True)
+    build(kernel, tree, payload, 'debug=0xc serial=3 cpus=1 keepsyms=1' + (' a31_vm_fault=1' if vm_fault else ''), entry_checkpoint=True)
     data = payload.read_bytes()
     checked = inspect_payload(data)
     virtual, entry, tree_off, tree_size, end, base, size = struct.unpack_from('<7Q', data, 16)
@@ -141,7 +141,7 @@ _start:
               'kernel_sha256': hashlib.sha256(kernel.read_bytes()).hexdigest(),
               'payload': checked, 'qemu_returncode': process.returncode,
               'wrapper_branches_to_actual_kernel': True,
-              'pre_mmu_checkpoint': checkpoint,
+              'pre_mmu_checkpoint': checkpoint, 'vm_checkpoint': vm, 'vm_fault_control': vm_fault,
               'markers': {marker: marker in text for marker in [
                   'ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                   'BOOT EXCEPTION', 'ENTRY-CHECK PASS', 'RECOVERY REQUEST']}}
@@ -151,34 +151,57 @@ _start:
     required = ['ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                 'C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
                 'XNU_CURRENT_EL=0x0000000000000001', 'XNU_CNTFRQ=0x0000000000c65d40']
-    if rebase or cpu_data or platform or bootstrap or runtime:
+    if rebase or cpu_data or platform or bootstrap or runtime or vm:
         required.extend(['C STAGE 21: image rebasing done; before boot args and CPU data',
                          'REBASE-CHECK PASS', 'RECOVERY REQUEST'])
         ordered = ['C STAGE 1: arm_init entered (MMU on)', 'ENTRY-CHECK PASS',
                    'C STAGE 21: image rebasing done; before boot args and CPU data',
                    'REBASE-CHECK PASS', 'RECOVERY REQUEST']
-        if cpu_data or platform or bootstrap or runtime:
+        if cpu_data or platform or bootstrap or runtime or vm:
             extra = ['C STAGE 22: boot args copied; CPU data initialized; before platform',
                      'CPU-DATA-CHECK PASS']
             required.extend(extra)
             ordered[-1:-1] = extra
-        if platform or bootstrap or runtime:
+        if platform or bootstrap or runtime or vm:
             extra = ['C STAGE 2: PE_init_platform done', 'PLATFORM-CHECK PASS']
             required.extend(extra)
             ordered[-1:-1] = extra
-        if bootstrap or runtime:
+        if bootstrap or runtime or vm:
             extra = ['C STAGE 3: ml_parse_cpu_topology done', 'TOPOLOGY-CHECK PASS',
                      'C STAGE 4: cpu_bootstrap done', 'CPU-BOOTSTRAP-CHECK PASS']
             required.extend(extra)
             ordered[-1:-1] = extra
-        if runtime:
+        if runtime or vm:
             extra = ['C STAGE 5: kernel_startup_bootstrap done', 'STARTUP-LOCKS-CHECK PASS',
                      'C STAGE 6: cpu_init done', 'CPU-INIT-CHECK PASS']
             required.extend(extra)
             ordered[-1:-1] = extra
+        if vm:
+            extra = ['C STAGE 7: entering arm_vm_init', 'VM-ENTER-CHECK PASS',
+                     'C STAGE 23: final diagnostic mappings prepared', 'VM-MAPS-CHECK PASS',
+                     'FINAL-IO-ALIASES PASS', 'C STAGE 10: TTBR0 off; TLB flushed',
+                     'VM-LOW-ALIASES INVALID']
+            if not vm_fault:
+                extra.append('VM-TABLES-CHECK PASS')
+            required.extend(extra)
+            ordered[-1:-1] = extra
+            if vm_fault:
+                from a31_reset_check import kernel_function
+                target, code = kernel_function(kernel.read_bytes(), b'_a31_vm_control_trap')
+                if code[:4] != struct.pack('<I', 0xd4214620):
+                    raise RuntimeError('VM fault-control symbol is not BRK #0xa31')
+                required_fault = ordered[:-1] + ['BOOT EXCEPTION', 'XNU_FAULT_ESR=0x00000000f2000a31',
+                                         'XNU_FAULT_ELR=' + f'0x{target:016x}']
+                fault_sctlr = re.search(r'XNU_FAULT_SCTLR=0x([0-9a-f]+)', text)
+                fault_positions = [text.find(marker) for marker in ordered[:-1]]
+                if (any(marker not in text for marker in required_fault) or fault_positions != sorted(fault_positions) or
+                    'VM-TABLES-CHECK PASS' in text or not fault_sctlr or
+                    not int(fault_sctlr.group(1), 16) & 1):
+                    raise RuntimeError('final-VBAR relay did not recover the exact post-TTBR0 BRK')
+                return
         positions = [text.find(marker) for marker in ordered]
         if (any(p < 0 for p in positions) or positions != sorted(positions) or
-                'REBASE-CHECK FAIL' in text or 'CPU-DATA-CHECK FAIL' in text or 'PLATFORM-CHECK FAIL' in text or 'CPU-BOOTSTRAP-CHECK FAIL' in text or 'CPU-INIT-CHECK FAIL' in text):
+                'REBASE-CHECK FAIL' in text or 'CPU-DATA-CHECK FAIL' in text or 'PLATFORM-CHECK FAIL' in text or 'CPU-BOOTSTRAP-CHECK FAIL' in text or 'CPU-INIT-CHECK FAIL' in text or 'VM-TABLES-CHECK FAIL' in text):
             raise RuntimeError('post-rebase checkpoint missing, failed or out of order')
     sctlr = re.search(r'XNU_SCTLR_EL1=0x([0-9a-f]+)', text)
     if trap or post or c_entry or prologue:
@@ -208,7 +231,11 @@ if __name__ == '__main__':
     parser.add_argument('--platform', action='store_true')
     parser.add_argument('--cpu-bootstrap', action='store_true')
     parser.add_argument('--runtime', action='store_true')
+    parser.add_argument('--vm', action='store_true')
+    parser.add_argument('--vm-fault', action='store_true')
     options = parser.parse_args()
-    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime]) > 1:
+    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime, options.vm]) > 1:
         parser.error('select only one checkpoint')
-    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime)
+    if options.vm_fault and not options.vm:
+        parser.error('--vm-fault requires --vm')
+    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime, options.vm, options.vm_fault)

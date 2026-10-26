@@ -29,7 +29,7 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
-        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|CPU-INIT-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|CPU-INIT-CHECK FAIL|VM-TABLES-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
         entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
             '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
@@ -85,8 +85,24 @@ def inspect(data, expected_build):
         runtime_positions = [session.find(line + '\n') for line in runtime_markers]
         runtime_pass = (bootstrap_pass and all(p >= 0 for p in runtime_positions) and
                         runtime_positions == sorted(runtime_positions))
+        vm_markers = ['[A31-XNU] CPU-INIT-CHECK PASS',
+                      '[A31-XNU] C STAGE 7: entering arm_vm_init', '[A31-XNU] VM-ENTER-CHECK PASS',
+                      '[A31-XNU] C STAGE 23: final diagnostic mappings prepared',
+                      '[A31-XNU] VM-MAPS-CHECK PASS', '[A31-XNU] FINAL-IO-ALIASES PASS',
+                      '[A31-XNU] C STAGE 10: TTBR0 off; TLB flushed',
+                      '[A31-XNU] VM-LOW-ALIASES INVALID', '[A31-XNU] VM-TABLES-CHECK PASS',
+                      '[A31-XNU] RECOVERY REQUEST']
+        vm_positions = [session.find(line + '\n') for line in vm_markers]
+        vm_pass = (runtime_pass and all(p >= 0 for p in vm_positions) and
+                   vm_positions == sorted(vm_positions) and
+                   fields.get('XNU_FINAL_LOG_VA') == '0xfffffe0002003000' and
+                   fields.get('XNU_FINAL_SRAM_VA') == '0xfffffe0002045c00' and
+                   int(fields.get('XNU_VBAR_EL1', '0'), 16) >= 0xffff000000000000 and
+                   int(fields.get('XNU_TTBR0_EL1', '0'), 16) != 0)
         if entry_failure:
             status = 'fail'
+        elif vm_pass:
+            status = 'xnu_vm_tables_pass'
         elif runtime_pass:
             status = 'xnu_cpu_init_pass'
         elif bootstrap_pass:
@@ -112,6 +128,7 @@ def inspect(data, expected_build):
                       'xnu_platform_pass': platform_pass,
                       'xnu_cpu_bootstrap_pass': bootstrap_pass,
                       'xnu_cpu_init_pass': runtime_pass,
+                      'xnu_vm_tables_pass': vm_pass,
                       'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
                       'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})

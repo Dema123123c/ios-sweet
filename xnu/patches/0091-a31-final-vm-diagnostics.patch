@@ -1,0 +1,303 @@
+A31: preserve diagnostic mappings and fatal vectors across final TTBR1/TTBR0 transition.
+Stop after verifying high aliases and invalid low aliases, before pmap bootstrap.
+
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -569,6 +569,10 @@
+ 	__builtin_arm_wsr("pan", 1);
+ #endif  /* __ARM_PAN_AVAILABLE__ */
+ 
++#if defined(A31)
++	if (args->virtBase != 0xfffffe0006000000ULL || args->physBase != 0x100000000ULL)
++		sweet_early_mark(0, "VM relay base policy mismatch");
++#endif
+ 	sweet_early_mark(7, "entering arm_vm_init");
+ 	arm_vm_init(xmaxmem, args);
+ 	sweet_early_mark(15, "arm_vm_init returned");
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1851,6 +1851,38 @@
+ }
+ #endif
+ 
++#if defined(A31)
++#include <arm64/a31_final_io.h>
++static void
++a31_early_map_final(void)
++{
++	const vm_map_address_t va = A31_FINAL_IO_VA;
++	_Static_assert(A31_FINAL_IO_VA == VM_MIN_KERNEL_ADDRESS + ARM_TT_L2_SIZE,
++	    "A31 final alias must remain in the reserved diagnostic L2 slot");
++	_Static_assert((ARM_PTE_TYPE_VALID | ARM_PTE_SH(SH_OUTER_MEMORY) |
++	    ARM_PTE_ATTRINDX(CACHE_ATTRINDX_WRITECOMB) | ARM_PTE_AF | ARM_PTE_PNX |
++	    ARM_PTE_NX) == A31_FINAL_NORMAL_PTE, "A31 NC/NX attributes changed");
++	_Static_assert((ARM_PTE_TYPE_VALID | ARM_PTE_SH(SH_OUTER_MEMORY) |
++	    ARM_PTE_ATTRINDX(CACHE_ATTRINDX_DISABLE) | ARM_PTE_AF | ARM_PTE_PNX |
++	    ARM_PTE_NX) == A31_FINAL_DEVICE_PTE, "A31 device/NX attributes changed");
++	if (va + ARM_TT_L2_SIZE > gVirtBase) panic("A31 final alias overlaps managed RAM");
++	tt_entry_t l1 = cpu_tte[(va & ARM_TT_L1_INDEX_MASK) >> ARM_TT_L1_SHIFT];
++	if ((l1 & (ARM_TTE_VALID | ARM_TTE_TYPE_MASK)) !=
++	    (ARM_TTE_VALID | ARM_TTE_TYPE_TABLE)) panic("A31 final alias L1 missing");
++	tt_entry_t *l2 = (tt_entry_t *)phystokv(l1 & ARM_TTE_TABLE_MASK);
++	tt_entry_t *slot = &l2[(va & ARM_TT_L2_INDEX_MASK) >> ARM_TT_L2_SHIFT];
++	if (*slot != ARM_TTE_EMPTY) panic("A31 final alias L2 occupied");
++	vm_offset_t page = alloc_ptpage(TRUE);
++	if (page & (ARM_PGBYTES - 1)) panic("A31 final L3 alignment");
++	bzero((void *)page, ARM_PGBYTES);
++	if (!a31_xnu_final_fill((uint64_t *)page, ARM_PGBYTES)) panic("A31 final L3 not empty");
++	*slot = (kvtophys(page) & ARM_TTE_TABLE_MASK) | ARM_TTE_TYPE_TABLE |
++	    ARM_TTE_VALID | ARM_TTE_TABLE_PXN | ARM_TTE_TABLE_XN;
++	__asm__ volatile("dsb ishst" ::: "memory");
++	sweet_early_mark(23, "final diagnostic mappings prepared");
++}
++#endif
++
+ void
+ arm_vm_init(uint64_t memory_size, boot_args * args)
+ {
+@@ -2183,6 +2215,9 @@
+ 	/* phystokv() must still refer to the bootstrap aperture here. */
+ 	sweet_early_map_final();
+ #endif
++#if defined(A31)
++	a31_early_map_final();
++#endif
+ 	arm_vm_physmap_init(args);
+ 	set_mmu_ttb_alternate(cpu_ttep & TTBR_BADDR_MASK);
+ 
+@@ -2191,6 +2226,9 @@
+ #if defined(SWEET) && !defined(A31)
+ 	/* The final TTBR1 is live; leave the outgoing VA=PA framebuffer alias. */
+ 	sweet_early_relocate(SWEET_EARLY_FB_VA);
++#endif
++#if defined(A31)
++	sweet_early_relocate(A31_FINAL_IO_VA);
+ #endif
+ 	set_mmu_ttb(invalid_ttep & TTBR_BADDR_MASK);
+ 
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -1117,3 +1117,7 @@
+ #define A31_BOOT_TEST 0
+ #include <arm64/a31_boot_asm.inc>
+ #endif
++
++#if defined(A31)
++#include "a31_final_vectors.inc"
++#endif
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -146,14 +146,22 @@
+ #include <arm64/a31_entry_io.h>
+ #include <kern/misc_protos.h>
+ 
+-/* Stop after rtclock/startup locks and cpu_init, before processor/VM startup. */
++#include <arm64/a31_final_io.h>
++#include <arm64/proc_reg.h>
++#include <pexpert/pexpert.h>
++extern unsigned char a31_final_vectors[];
++extern void a31_vm_control_trap(void) __attribute__((noreturn));
++/* Stop after final TTBR1 activation and TTBR0 invalidation, before pmap bootstrap. */
+ static unsigned int a31_panicking;
+ static unsigned int a31_entry_seen;
++static unsigned int a31_vm_fault_control;
++static uintptr_t a31_log_base = 0x4d05f000;
++static uintptr_t a31_recovery_base = 0x10dc00;
+ 
+ void
+ sweet_early_putc(char character)
+ {
+-    (void)a31_xnu_ring_putc((void *)(uintptr_t)0x4d05f000, 0x40000, character);
++    (void)a31_xnu_ring_putc((void *)a31_log_base, 0x40000, character);
+     __asm__ volatile("dsb sy" ::: "memory");
+ }
+ 
+@@ -174,12 +182,27 @@
+     sweet_early_putc('\n');
+ }
+ 
++static uint64_t
++a31_translation(uint64_t address)
++{
++    uint64_t par;
++    __asm__ volatile("at s1e1r, %1\nisb\nmrs %0, par_el1" : "=r"(par) : "r"(address) : "memory");
++    return par;
++}
++
++static int
++a31_translation_matches(uint64_t address, uint64_t physical)
++{
++    uint64_t par = a31_translation(address);
++    return !(par & 1) && ((par & 0x0000fffffffff000ULL) | (address & 0xfff)) == physical;
++}
++
+ static __attribute__((noreturn)) void
+ a31_return(void)
+ {
+     __asm__ volatile("msr daifset, #15" ::: "memory");
+     a31_string("[A31-XNU] RECOVERY REQUEST\n");
+-    if (a31_xnu_request_recovery((void *)(uintptr_t)0x10dc00, 0x800)) {
++    if (a31_xnu_request_recovery((void *)a31_recovery_base, 0x800)) {
+         register uint64_t function __asm__("x0") = 0x84000009;
+         register uint64_t arg1 __asm__("x1") = 0;
+         register uint64_t arg2 __asm__("x2") = 0;
+@@ -252,7 +275,38 @@
+     }
+     if (stage == 6 && a31_entry_seen == 7 && current_el == 4 &&
+         (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 8;
+         a31_string("[A31-XNU] CPU-INIT-CHECK PASS\n");
++        return;
++    }
++    if (stage == 7 && a31_entry_seen == 8 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        (void)PE_parse_boot_argn("a31_vm_fault", &a31_vm_fault_control, sizeof(a31_vm_fault_control));
++        uintptr_t vectors = (uintptr_t)a31_final_vectors;
++        __asm__ volatile("msr vbar_el1, %0\nisb" : : "r"(vectors) : "memory");
++        a31_entry_seen = 9;
++        a31_string("[A31-XNU] VM-ENTER-CHECK PASS\n");
++        return;
++    }
++    if (stage == 23 && a31_entry_seen == 9 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000) {
++        a31_entry_seen = 10;
++        a31_string("[A31-XNU] VM-MAPS-CHECK PASS\n");
++        return;
++    }
++    if (stage == 10 && a31_entry_seen == 11 && current_el == 4 &&
++        (sctlr & 1) && frequency == 13000000 &&
++        a31_translation_matches(A31_FINAL_LOG_VA, 0x4d05f000) &&
++        a31_translation_matches(A31_FINAL_SRAM_VA, 0x10dc00) &&
++        (a31_translation(0x4d05f000) & 1) && (a31_translation(0x10dc00) & 1)) {
++        uint64_t ttbr0, vbar;
++        __asm__ volatile("mrs %0, ttbr0_el1" : "=r"(ttbr0));
++        __asm__ volatile("mrs %0, vbar_el1" : "=r"(vbar));
++        a31_hex("XNU_TTBR0_EL1=", ttbr0);
++        a31_hex("XNU_VBAR_EL1=", vbar);
++        a31_string("[A31-XNU] VM-LOW-ALIASES INVALID\n");
++        if (a31_vm_fault_control) a31_vm_control_trap();
++        a31_string("[A31-XNU] VM-TABLES-CHECK PASS\n");
+     } else {
+         a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
+         a31_string("[A31-XNU] REBASE-CHECK FAIL\n");
+@@ -260,6 +314,7 @@
+         a31_string("[A31-XNU] PLATFORM-CHECK FAIL\n");
+         a31_string("[A31-XNU] CPU-BOOTSTRAP-CHECK FAIL\n");
+         a31_string("[A31-XNU] CPU-INIT-CHECK FAIL\n");
++        a31_string("[A31-XNU] VM-TABLES-CHECK FAIL\n");
+     }
+     a31_return();
+ }
+@@ -280,6 +335,21 @@
+     a31_return();
+ }
+ 
+-void sweet_early_relocate(uint64_t base) { (void)base; a31_return(); }
++void
++sweet_early_relocate(uint64_t base)
++{
++    if (base != A31_FINAL_IO_VA || a31_entry_seen != 10 ||
++        !a31_translation_matches(A31_FINAL_LOG_VA, 0x4d05f000) ||
++        !a31_translation_matches(A31_FINAL_SRAM_VA, 0x10dc00)) {
++        a31_string("[A31-XNU] VM-TABLES-CHECK FAIL\n");
++        a31_return();
++    }
++    a31_log_base = A31_FINAL_LOG_VA;
++    a31_recovery_base = A31_FINAL_SRAM_VA;
++    a31_entry_seen = 11;
++    a31_hex("XNU_FINAL_LOG_VA=", a31_log_base);
++    a31_hex("XNU_FINAL_SRAM_VA=", a31_recovery_base);
++    a31_string("[A31-XNU] FINAL-IO-ALIASES PASS\n");
++}
+ void sweet_early_disable(void) { a31_return(); }
+ #endif /* A31: deliberately stops before final TTBR1/TTBR0 teardown. */
+--- /dev/null
++++ b/osfmk/arm64/a31_final_io.h
+@@ -0,0 +1,24 @@
++#ifndef A31_XNU_FINAL_IO_H
++#define A31_XNU_FINAL_IO_H
++#include <stdint.h>
++#include <stddef.h>
++
++#define A31_FINAL_IO_VA UINT64_C(0xfffffe0002000000)
++#define A31_FINAL_LOG_VA (A31_FINAL_IO_VA + UINT64_C(0x3000))
++#define A31_FINAL_SRAM_VA (A31_FINAL_IO_VA + UINT64_C(0x45c00))
++#define A31_FINAL_NORMAL_PTE UINT64_C(0x0060000000000607)
++#define A31_FINAL_DEVICE_PTE UINT64_C(0x006000000000060f)
++
++/* A fresh 16 KiB L3 only: 17 NC/NX console pages, then one device/NX page.
++ * Validate the entire page before the first store; never replace a mapping. */
++static inline int
++a31_xnu_final_fill(uint64_t *page, size_t bytes)
++{
++    if (!page || ((uintptr_t)page & 7) || bytes != 0x4000) return 0;
++    for (size_t i = 0; i < 2048; ++i) if (page[i]) return 0;
++    for (size_t i = 0; i < 17; ++i)
++        page[i] = (UINT64_C(0x4d05c000) + i * 0x4000) | A31_FINAL_NORMAL_PTE;
++    page[17] = UINT64_C(0x10c000) | A31_FINAL_DEVICE_PTE;
++    return 1;
++}
++#endif
+--- /dev/null
++++ b/osfmk/arm64/a31_final_vectors.inc
+@@ -0,0 +1,60 @@
++/* Fatal boot-CPU relay from final KVA back to the preserved bootstrap map.
++ * Never disable translation while executing a high virtual PC. No stack/data.
++ * Fixed base policy is checked in arm_init before this VBAR is installed. */
++    .text
++    .balign 2048
++    .globl EXT(a31_final_vectors)
++LEXT(a31_final_vectors)
++.macro a31_final_vector index
++    .balign 128
++    mov x23, #\index
++    b EXT(a31_final_fault)
++.endmacro
++    a31_final_vector 0
++    a31_final_vector 1
++    a31_final_vector 2
++    a31_final_vector 3
++    a31_final_vector 4
++    a31_final_vector 5
++    a31_final_vector 6
++    a31_final_vector 7
++    a31_final_vector 8
++    a31_final_vector 9
++    a31_final_vector 10
++    a31_final_vector 11
++    a31_final_vector 12
++    a31_final_vector 13
++    a31_final_vector 14
++    a31_final_vector 15
++    .balign 2048
++LEXT(a31_final_fault)
++    msr daifset, #15
++    MOV64 x9, 0xfffffe0006000000
++    MOV64 x10, 0x100000000
++    adrp x11, EXT(bootstrap_pagetables)@page
++    add x11, x11, EXT(bootstrap_pagetables)@pageoff
++    sub x11, x11, x9
++    add x11, x11, x10
++    dsb sy
++    msr ttbr0_el1, x11
++    isb
++    tlbi vmalle1is
++    dsb ish
++    isb
++    adrp x12, EXT(a31_boot_fault)@page
++    add x12, x12, EXT(a31_boot_fault)@pageoff
++    sub x12, x12, x9
++    add x12, x12, x10
++    adrp x13, EXT(a31_boot_vectors)@page
++    add x13, x13, EXT(a31_boot_vectors)@pageoff
++    sub x13, x13, x9
++    add x13, x13, x10
++    msr vbar_el1, x13
++    isb
++    br x12
++
++    .balign 4
++    .globl EXT(a31_vm_control_trap)
++LEXT(a31_vm_control_trap)
++    brk #0xa31
++    b EXT(a31_vm_control_trap)

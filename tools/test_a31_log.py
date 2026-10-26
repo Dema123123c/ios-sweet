@@ -41,6 +41,21 @@ class A31LogTests(unittest.TestCase):
         runtime_good = bootstrap_good.replace(b'[A31-XNU] RECOVERY REQUEST\n',
                                               runtime + b'[A31-XNU] RECOVERY REQUEST\n')
         self.assertEqual(inspect(BEGIN + runtime_good, BUILD)['status'], 'xnu_cpu_init_pass')
+        vm = (b'[A31-XNU] C STAGE 7: entering arm_vm_init\n[A31-XNU] VM-ENTER-CHECK PASS\n'
+              b'[A31-XNU] C STAGE 23: final diagnostic mappings prepared\n'
+              b'[A31-XNU] VM-MAPS-CHECK PASS\n[A31-XNU] FINAL-IO-ALIASES PASS\n'
+              b'XNU_FINAL_LOG_VA=0xfffffe0002003000\nXNU_FINAL_SRAM_VA=0xfffffe0002045c00\n'
+              b'[A31-XNU] C STAGE 10: TTBR0 off; TLB flushed\n'
+              b'XNU_TTBR0_EL1=0x0000000102500000\nXNU_VBAR_EL1=0xfffffe0007500000\n'
+              b'[A31-XNU] VM-LOW-ALIASES INVALID\n[A31-XNU] VM-TABLES-CHECK PASS\n')
+        vm_good = runtime_good.replace(b'[A31-XNU] RECOVERY REQUEST\n', vm + b'[A31-XNU] RECOVERY REQUEST\n')
+        self.assertEqual(inspect(BEGIN + vm_good, BUILD)['status'], 'xnu_vm_tables_pass')
+        for bad in [runtime_good, vm + runtime_good,
+                    vm_good.replace(b'VM-LOW-ALIASES INVALID', b'VM-LOW-ALIASES VALID'),
+                    vm_good.replace(b'0xfffffe0002045c00', b'0x000000000010dc00'),
+                    vm_good + b'[A31-XNU] BOOT EXCEPTION\n',
+                    vm_good + b'[A31-XNU] VM-TABLES-CHECK FAIL\n']:
+            self.assertFalse(inspect(BEGIN + bad, BUILD)['sessions'][0]['xnu_vm_tables_pass'])
         for bad in [bootstrap_good, runtime + bootstrap_good,
                     runtime_good.replace(b'[A31-XNU] STARTUP-LOCKS-CHECK PASS\n', b''),
                     runtime_good + b'[A31-XNU] CPU-INIT-CHECK FAIL\n']:

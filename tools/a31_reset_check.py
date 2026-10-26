@@ -2,7 +2,7 @@
 import struct
 
 
-def check_kernel_reset(data):
+def kernel_function(data, symbol):
     if len(data) < 32:
         raise ValueError('reset check: truncated Mach-O')
     magic, cpu, subtype, kind, count, size, flags, reserved = struct.unpack_from('<8I', data)
@@ -49,7 +49,7 @@ def check_kernel_reset(data):
         if end < 0:
             raise ValueError('reset check: unterminated symbol name')
         symbols.append((data[strings + index:end], address, section))
-    matches = [(address, section) for name, address, section in symbols if name == b'_a31_return']
+    matches = [(address, section) for name, address, section in symbols if name == symbol]
     if len(matches) != 1:
         raise ValueError('reset check: unique a31_return function missing')
     start, section = matches[0]
@@ -59,6 +59,11 @@ def check_kernel_reset(data):
     va, offset, length = segments[0]
     end = min([address for _, address, sect in symbols if sect == section and address > start] + [va + length, start + 4096])
     function = data[offset + start - va:offset + end - va]
+    return start, function
+
+
+def check_kernel_reset(data):
+    start, function = kernel_function(data, b'_a31_return')
     sequence = struct.pack('<III', 0xd5033f9f, 0xd5033fdf, 0xd4000003)
     positions = [i for i in range(0, len(function) - 11, 4) if function[i:i + 12] == sequence]
     if len(positions) != 1:

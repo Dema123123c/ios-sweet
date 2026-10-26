@@ -165,6 +165,9 @@ def build(kernel, tree, output, command_line, entry_checkpoint=False):
         raise ValueError('command line must be ASCII, NUL-free and shorter than 608 bytes')
     payload, packed = mkpayload.build(str(kernel), str(tree), command_line)
     checked = inspect_payload(payload)
+    if b'[A31-XNU] VM-TABLES-CHECK PASS' in kernel.read_bytes():
+        if struct.unpack_from('<Q', payload, 16)[0] != 0xfffffe0006000000:
+            raise ValueError('VM diagnostic relay requires the fixed A31 virtual base')
     if output.exists():
         raise FileExistsError('use a new payload path')
     output.parent.mkdir(parents=True, exist_ok=True)

@@ -27,7 +27,7 @@ class PlatformFixtureTests(unittest.TestCase):
             self.assertTrue(entry_checkpoint)
             raise FixtureChecked
 
-        for mode in ['platform', 'bootstrap', 'runtime']:
+        for mode in ['platform', 'bootstrap', 'runtime', 'vm']:
             with tempfile.TemporaryDirectory() as directory:
                 with patch('a31_bootstrap_qemu.build', side_effect=check):
                     with self.assertRaises(FixtureChecked):

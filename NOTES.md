@@ -8,6 +8,25 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- 2026-10-26 RESUME: ADB currently sees A31 in recovery; read live state again
+  before any write. V23 source0091 prepared for grouped processor/early VM
+  through final TTBR1 activation and TTBR0 invalidation, stopping at stage10
+  BEFORE kva_active/pmap_bootstrap. No VM/native success claimed yet.
+  Final aliases: reserved VAfffffe0002000000 L2 slot, 17 NC/NX pstore pages
+  plus one device/NX SRAM page; console VAfffffe0002003000, SRAM
+  VAfffffe0002045c00. Fill only a fresh empty L3; check attributes at compile
+  time and occupied parent slots at runtime. Logger/recovery pointers move
+  only after AT/PAR verifies both new physical translations. Stage10 checks
+  both old low addresses now fault, then emits VM-TABLES-CHECK PASS/reset.
+  New high-VBAR fatal relay restores preserved bootstrap TTBR0, flushes TLB,
+  branches to existing physical fault handler BEFORE that handler disables M.
+  Never disable MMU while executing high VA. Fixed KVA/PA policy checked
+  before installing relay. Normal and exact-symbol post-TTBR0 BRK controls
+  must BOTH pass in actual-kernel QEMU before native test. BOOT-only scope.
+  70 Python tests PASS (native-host clock C test skipped locally), all three
+  changed C files and Darwin final-vector assembly compile locally. Host C
+  final-L3 bounds/empty-page tests added to both CI workflows with sanitizers.
+  Private research/a31-vm-attempt; current phone BOOT remains V22.
 - V22 CHECKPOINT SAVED AND VERIFIED in workspace outputs/a31-v22-checkpoint-20261023/
   a31-v22-checkpoint.zip, 62 files, 167371808B, CRC test PASS, SHA256
   72848f92b07ece5d3d544eb9d8823f5575aa1a4898749374ee11207bda93dd18.
