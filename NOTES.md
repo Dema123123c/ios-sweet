@@ -8,6 +8,37 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V25 NATIVE ARM_VM_INIT RETURN PASS, 2026-10-26. Source50b7ca6e272557ab23ce4bd9732b1482fe926c00;
+  kernel40373179878, shim40373179514 and actual-kernel FOUR controls
+  QEMU40375510661 all SUCCESS. KernelSHA256
+  d64f01862aa6811766010c6d6fcb6c9eb10b50b43a6804266ab99971e37d29bd.
+  BOOT5f121379ea227579bc3ce1676701f184c72721ac38ebb3cf3368d90b4069c67b
+  written ONLYp35; unlocked/orange FDT and saved GPT block-start checked,
+  full32MiB readback and post-test recovery/both-vbmeta/BOOT hashes match.
+  ADB recovery observed; matching pstore xnu_arm_vm_init_pass, stage15 caller
+  return and RECOVERY REQUEST; no exception/failure/reset-return. User
+  subsequently confirmed automatic TWRP return with only short Power presses.
+  Latealloc1025a4000..1025d0000=180224B,11PT pages/3 empty NX L3 pages,
+  first_avail1025d0000, preemption0->0/AST0, EL1/SCTLR3454593d/13MHz,
+  VBARfffffe0007491800 exact. Raw research/a31-v25-armvm-logs/report.json.
+  V25 retained in TWRP; no required Android restore or queued phone writes.
+  Stops AFTERarm_vm_init returns, BEFOREdebug/serial and later VM startup;
+  not full VM/scheduler/GPU/iOS. NEXT: grouped debug/serial/kprintf audit;
+  current A31 arm-io children gic/wdt only, no UART/display. Preserve all
+  existing final mappings/fault controls. See docs/A31-ARM-VM-CHECKPOINT.md.
+
+- V25 source50b7ca6e272557ab23ce4bd9732b1482fe926c00 pushed. Kernel
+  CI40373179878 running; shim40373179514 SUCCESS. Private a31-armvm-attempt
+  await_kernel/prepare/test_v25/capture_v25/pending require all FOUR linked
+  kernel controls and previous V24 PC/cloud archive hashes plus its confirmed
+  upload before any BOOT write. Do not compare current V24 BOOT against old
+  full53-partition snapshot's V23 BOOT; that snapshot intentionally stays
+  immutable. Current V24 BOOT is independently retained in its package/archive.
+  V25 work-in-progress source archive verified on PC and G:/Мой диск/
+  A31-Backups/2026-10-26:917584B/SHA256
+  824d31802486f8bf0f2534bcee6a4037174781620ec6c18e9f56fb5b20abed26.
+  No V25 image/write yet; V24/TWRP and previous sealed backups remain intact.
+
 - V25 PREPARATION, 2026-10-26:0093 extends through remaining arm_vm_init
   L3/heap directories, LowGlo update, balanced disable/enable_preemption and
   caller stage15 return; stop before debug/serial and later VM startup.
