@@ -8,6 +8,23 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- FINAL V24 CHECKPOINT sealed and VERIFIED ON PC + PRIVATE GOOGLE DRIVE:
+  workspace outputs/a31-v24-work-20261026/a31-v24-checkpoint.zip and
+  G:/Мой диск/A31-Backups/2026-10-26/a31-v24-checkpoint.zip;
+  387entries/366870466B, SHA256
+  7b85588eb78f853bb4d3438552e453013f169d7319159abb16c7cf6bfe1f7451.
+  CRC/every-entry SHA and PC/cloud-mount outer SHA verified. Google Drive
+  sync history explicitly marked this ZIP, its manifest and V24-README
+  "Файл загружен", plus global all-files-synced. Local adjacent
+  cloud-upload-confirmation.json records the observed acknowledgment.
+  Source snapshot471898864363f9d76ee5a9a5afed630011a9a28b; native kernel/shim
+  source0b7dee09e0314cedc28ed00126a8bc04a9b2fc2d. Includes actual native
+  package, source/host/native/QEMU evidence, original BOOT/RECOVERY restore
+  images/tars, known-good V22/V23 BOOT and backup references. Full53 firmware
+  partitions remain separate on BOTH PC and G; no userdata/RPMB backup.
+  Phone live ADB recovery verified with V24 retained. No pending writes,
+  builds or required Android restore. Continue at rest-of-arm_vm_init audit.
+
 - V24 NATIVE PMAP BOOTSTRAP PASS, 2026-10-26. Source0b7dee09e0314cedc28ed00126a8bc04a9b2fc2d;
   kernel40365585903, shim40365585959 and actual-kernel THREE controls
   QEMU40368222414 all SUCCESS. KernelSHA256
