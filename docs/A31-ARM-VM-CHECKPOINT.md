@@ -81,3 +81,16 @@ images. Important firmware/service backups exist on both the PC and the
 user's private Google Drive, with no userdata or RPMB backup. No GPT repair
 was performed; see the prior pmap checkpoint for the preserved secondary
 GPT CRC limitation. Device dumps and keys remain outside Git.
+
+### Source audit after the V25 seal
+
+The next caller sequence is `patch_low_glo` (debug boot only),
+`PE_consistent_debug_inherit`, `serial_init`, KPRINTF startup and `kprintf`.
+The first only assigns lowGlo.lgStext. The consistent-debug hook returns -1
+without a chosen/consistent-debug-root property. Serial discovery calls
+fbcon_probe, which requires an explicit sweet-fbcon node before mapping;
+no A31 UART or framebuffer is currently supplied. With no registered serial
+functions, serial_init returns 0. KPRINTF then selects
+console_write_unbuffered as its fallback: this must be audited before
+allowing output or claiming a usable console. Keep the existing pstore relay
+active. These are source findings, not native execution of this next group.

@@ -8,6 +8,20 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- FINAL V25 CHECKPOINT sealed on PC and private Google Drive:
+  workspace outputs/a31-v25-work-20261026/a31-v25-checkpoint.zip and
+  G:/Мой диск/A31-Backups/2026-10-26/a31-v25-checkpoint.zip;
+  387 manifest entries,360205095B,SHA256
+  920b5538a026dad985c96e7d615ff30efc57b57d0d881c15983e3c694b72a991.
+  Source snapshot84476afa83de4bf5518e96f06ce2b75420d93e36;
+  executed kernel source50b7ca6e272557ab23ce4bd9732b1482fe926c00.
+  ZIP CRC/every-entry SHA and PC/G mount outer SHA match. Drive history
+  explicitly marks ZIP,manifest,README and separate next-console audit
+  uploaded; global all files synced. Adjacent cloud-upload-confirmation.json
+  records client acknowledgment, not server-side remote SHA calculation.
+  Sealed ZIP stays immutable. Next-console source audit is separate;
+  post-arm_vm_init debug/serial group has not executed natively.
+
 - V25 NATIVE ARM_VM_INIT RETURN PASS, 2026-10-26. Source50b7ca6e272557ab23ce4bd9732b1482fe926c00;
   kernel40373179878, shim40373179514 and actual-kernel FOUR controls
   QEMU40375510661 all SUCCESS. KernelSHA256
