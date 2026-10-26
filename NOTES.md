@@ -8,6 +8,38 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V24 NATIVE PMAP BOOTSTRAP PASS, 2026-10-26. Source0b7dee09e0314cedc28ed00126a8bc04a9b2fc2d;
+  kernel40365585903, shim40365585959 and actual-kernel THREE controls
+  QEMU40368222414 all SUCCESS. KernelSHA256
+  edc3b4171f78ff9573fe40a218a8ab4a6e062ecb41a6f4bb09e0a383d3380e8e.
+  BOOT4c58f083dff4fbd525488f966838951ab2bc6d84d3bfc17d10bd49e2a4c473af
+  written ONLYp35; point-of-write FDTunlocked/orange, block start matches
+  backed-up primary GPT, 32MiB full readback/post-test hash verified.
+  Recovery/both vbmetas unchanged; user automatic TWRP. Native matching
+  pstore xnu_pmap_bootstrap_pass, no failure/exception; last_kmsg loader-only.
+  Alloc1024fc000..1025a4000 (688128B), limit13fd00000, root1024d4000,
+  2048ASIDs, EL1/SCTLR3454593d/13MHz, VBARfffffe0007490800 exact symbol.
+  Private research/a31-v24-pmap-logs/report.json and a31-pmap-attempt operation.
+  V24 retained in TWRP; no required Android restore or queued phone writes.
+  Stops AFTERpmap_bootstrap but BEFOREdisable_preemption/page-table expansion;
+  arm_vm_init has not returned. No fullVM/GPU/scheduler/iOS claim.
+  NEXT: audit/group rest of arm_vm_init through return, retain final aliases
+  and exact-kernel normal/fault gates. See docs/A31-PMAP-CHECKPOINT.md.
+
+- V24 source0b7dee09e0314cedc28ed00126a8bc04a9b2fc2d pushed: kernel
+  CI40365585903 running, shim40365585959 SUCCESS. Private a31-pmap-attempt
+  await_kernel/prepare/test_v24/capture_v24/pending ready; require THREE
+  exact-kernel QEMU controls plus successful private cloud-sync gate before
+  any V24 write. Current native BOOT remains V23. V24 work-in-progress source
+  archive verified on PC and G:/Мой диск/A31-Backups/2026-10-26,
+  1347012B/SHA2569afd332694c33bf6f2f9209132b7a4b12effb5b3b287c8ec1d4872219358cce4.
+- BACKUPS CLOUD UPLOAD CONFIRMED: Google Drive desktop UI reported
+  "Все файлы синхронизированы менее минуты назад" after all partitions,
+  original stock BOOT/RECOVERY images plus Odin restore tars, V23 checkpoint
+  and V24 source snapshot were copied. Private cloud-sync-gate.json and both
+  backup manifests record confirmation. Important backups exist on BOTH PC
+  and user-requested private G:/Мой диск. No userdata/RPMB, no GPT repair.
+
 - 2026-10-26 USER BACKUP REQUEST: important material on BOTH PC and private
   Google Drive mount G:/Мой диск/A31-Backups/2026-10-26, never public GitHub.
   53 physical firmware/service/eMMC-boot partitions (including unaliased p34),
