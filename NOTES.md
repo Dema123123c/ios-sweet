@@ -8,6 +8,27 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- 2026-10-26 CI migration: macos-14 run40352387969 failed before starting
+  any steps during GitHub's scheduled Oct26 14:00UTC brownout. Move to
+  macos-15-intel/Xcode16; preserve XNU8796 IORPC ABI via exact generated
+  Xcode15 DriverKit output from successful V22 run39977026628. Baseline tgz
+  SHA256 38f9bc2dd58d7f27895e38dedcdd34a7e49415b33694e422bd98c06a684aa273.
+  tools/a31_iig_cache.py checks pinned archive, all original header/IIG
+  hashes (except unrelated vendored libpthread SDK TargetConditionals.h),
+  definition set and output hashes before replay. Unknown inputs fail closed.
+  Five cache regression tests and local replay against V23 source PASS.
+  Renew private baseline artifact90days; never commit generated Apple files.
+  No new native write; V22 still installed. V23 VM checks remain unverified.
+
+- V23 source a7317b542e7ace8dd806e3077703a9f66596b5c3 pushed. Kernel
+  CI40352387969 and shim CI40352388293 started. Private a31-vm-attempt has
+  await_kernel.py (requires successful kernel and reset code; auto-dispatches
+  a31-bootstrap for normal VM plus exact BRK fault control), prepare.py and
+  test_v23.py. Native preflight requires BOTH QEMU artifacts/status, trap
+  symbol/ESR/ELR, actual VBAR symbol and matching payload/kernel hashes;
+  native command line forbids fault-control flag. No V23 image/write yet.
+  Fresh live baseline saved resume-baseline.json: A31/TWRP3.7.0_11-1,
+  V22 BOOT, recovery/both vbmetas unchanged, unlocked/orange, RAM/pstore valid.
 - 2026-10-26 RESUME: ADB currently sees A31 in recovery; read live state again
   before any write. V23 source0091 prepared for grouped processor/early VM
   through final TTBR1 activation and TTBR0 invalidation, stopping at stage10

@@ -31,6 +31,10 @@ concurrency:
   group: xnu-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+  actions: read
+
 env:
   DXB_REPO: https://github.com/blacktop/darwin-xnu-build
   DXB_SHA: 663906528d1cd5ea8fde7de6f16de73db9511549
@@ -40,12 +44,31 @@ env:
 
 jobs:
   build:
-    # macos-14 still ships Xcode 15.x: its iig matches the xnu-8796 IORPC ABI
-    # (Xcode 16's iig emits IORPC.kernelContent, which this xnu lacks)
-    runs-on: macos-14
+    # Xcode 16 compiles XNU; hash-gated Xcode 15 IIG outputs preserve its ABI.
+    runs-on: macos-15-intel
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
+
+      - name: Restore compatible DriverKit generator outputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$MACHINE_CONFIG" = A31 && test "$MACOS_VERSION" = 13.5 && test "$KERNEL_CONFIG" = DEVELOPMENT
+          BASELINE_RUN=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '[.artifacts[] | select(.name == "xnu-iig-baseline" and .expired == false)][0].workflow_run.id // empty')
+          BASELINE_NAME=xnu-iig-baseline
+          if [ -z "$BASELINE_RUN" ]; then BASELINE_RUN=39977026628; BASELINE_NAME=xnu-buildtree; fi
+          gh run download "$BASELINE_RUN" --repo "$GITHUB_REPOSITORY" --name "$BASELINE_NAME" --dir "$RUNNER_TEMP/iig-baseline"
+          python3 tools/a31_iig_cache.py prepare "$RUNNER_TEMP/iig-baseline/buildtree.tgz" "$RUNNER_TEMP/iig-cache"
+          chmod +x tools/a31_iig_cache.py
+          echo "A31_IIG_CACHE=$RUNNER_TEMP/iig-cache" >> "$GITHUB_ENV"
+          echo "IIG=$GITHUB_WORKSPACE/tools/a31_iig_cache.py" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xnu-iig-baseline
+          path: ${{ runner.temp }}/iig-baseline/buildtree.tgz
+          retention-days: 90
 
       - name: Check A31 host tools
         if: env.MACHINE_CONFIG == 'A31'
@@ -71,14 +94,14 @@ jobs:
       - name: Deps
         run: |
           brew install jq gum bash cmake ninja
-          # build.sh only checks that xcodes exists (Xcode is preinstalled); no bottle on macOS 14
+          # build.sh only checks that xcodes exists; Xcode is preinstalled.
           printf '#!/bin/sh\nexit 0\n' | sudo tee /usr/local/bin/xcodes >/dev/null
           sudo chmod +x /usr/local/bin/xcodes
           sw_vers
           ls -d /Applications/Xcode*.app
-          XC=$(find /Applications -maxdepth 1 -name 'Xcode_15*.app' | sort -V | head -1)
+          XC=$(find /Applications -maxdepth 1 -name 'Xcode_16*.app' | sort -V | head -1)
           if [ -z "$XC" ]; then
-            echo '::error::xnu-8796 requires the Xcode 15 iig ABI; no Xcode 15 installation found.'
+            echo '::error::No Xcode 16 installation found.'
             exit 1
           fi
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
