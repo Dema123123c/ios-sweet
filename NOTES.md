@@ -19,6 +19,13 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
   Five cache regression tests and local replay against V23 source PASS.
   Renew private baseline artifact90days; never commit generated Apple files.
   No new native write; V22 still installed. V23 VM checks remain unverified.
+- Migration run40355936473 restored the baseline, passed all75 host tests,
+  fetched/applied0091 and built support tools, then stopped at installhdrs:
+  bsd/sweet_hfs/TargetConditionals.h is another private SDK copy, outside
+  DriverKit IIG inputs. Exclude exactly that copy alongside libpthread's;
+  retain checks for all other original headers/definitions. Shim40355936442
+  SUCCESS, artifacts downloaded. No native V23 image/write. GPU/display FDT
+  inventory saved privately; this is identification, not GPU initialization.
 
 - V23 source a7317b542e7ace8dd806e3077703a9f66596b5c3 pushed. Kernel
   CI40352387969 and shim CI40352388293 started. Private a31-vm-attempt has

@@ -27,8 +27,9 @@ def prepare(archive, target):
                 continue
             name = member.name
             if name.startswith('xnu/') and name.endswith(('.h', '.iig')):
-                # This SDK copy belongs to libpthread, outside DriverKit inputs.
-                if name == 'xnu/bsd/pthread/sweet_libpthread/TargetConditionals.h':
+                # Private SDK copies used by vendored HFS/libpthread, not IIG.
+                if name in ('xnu/bsd/pthread/sweet_libpthread/TargetConditionals.h',
+                            'xnu/bsd/sweet_hfs/TargetConditionals.h'):
                     continue
                 inputs[name[4:]] = digest(tree.extractfile(member).read())
             elif name.startswith(PREFIX) and name.endswith(('.h', '.iig.cpp')):
