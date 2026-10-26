@@ -40,3 +40,16 @@ class FinalVMSourceTests(unittest.TestCase):
         self.assertLess(text.index('tlbi vmalle1is'), text.index('br x12'))
         self.assertIn('EXT(bootstrap_pagetables)@page', text)
         self.assertIn('EXT(a31_boot_fault)@page', text)
+
+    def test_shared_armvm_sources_are_exact_patch_copies(self):
+        patch = (ROOT / 'xnu/patches/0093-a31-arm-vm-init-return-checkpoint.patch').read_text()
+        for local, kernel in [('xnu_armvm_check.h', 'a31_armvm_check.h'),
+                              ('xnu_armvm_trap.inc', 'a31_armvm_trap.inc')]:
+            block = patch.split('+++ b/osfmk/arm64/' + kernel + '\n', 1)[1]
+            lines = []
+            for line in block.splitlines(keepends=True):
+                if line.startswith('--- '):
+                    break
+                if line.startswith('+'):
+                    lines.append(line[1:])
+            self.assertEqual(''.join(lines), (ROOT / 'shim/a31' / local).read_text())

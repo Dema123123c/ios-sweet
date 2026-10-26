@@ -41,7 +41,8 @@ def bootstrap_checkpoint(kernel, target, post=False, c_entry=False, prologue=Fal
             'original_instruction': hex(original), 'replacement_instruction': '0xd4214620'}
 
 
-def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, rebase=False, cpu_data=False, platform=False, bootstrap=False, runtime=False, vm=False, vm_fault=False, pmap=False, pmap_fault=False):
+def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, rebase=False, cpu_data=False, platform=False, bootstrap=False, runtime=False, vm=False, vm_fault=False, pmap=False, pmap_fault=False, arm_vm=False, arm_vm_fault=False):
+    pmap = pmap or arm_vm
     vm = vm or pmap
     out.mkdir(parents=True, exist_ok=False)
     checkpoint = None
@@ -73,7 +74,7 @@ def run(kernel, out, trap=False, post=False, c_entry=False, prologue=False, reba
     tree = out / 'synthetic.adt'
     tree.write_bytes(adt.serialize(root))
     payload = out / 'xnu.payload'
-    build(kernel, tree, payload, 'debug=0xc serial=3 cpus=1 keepsyms=1' + (' a31_vm_fault=2' if pmap_fault else ' a31_vm_fault=1' if vm_fault else ''), entry_checkpoint=True)
+    build(kernel, tree, payload, 'debug=0xc serial=3 cpus=1 keepsyms=1' + (' a31_vm_fault=3' if arm_vm_fault else ' a31_vm_fault=2' if pmap_fault else ' a31_vm_fault=1' if vm_fault else ''), entry_checkpoint=True)
     data = payload.read_bytes()
     checked = inspect_payload(data)
     virtual, entry, tree_off, tree_size, end, base, size = struct.unpack_from('<7Q', data, 16)
@@ -144,6 +145,7 @@ _start:
               'wrapper_branches_to_actual_kernel': True,
               'pre_mmu_checkpoint': checkpoint, 'vm_checkpoint': vm, 'vm_fault_control': vm_fault,
               'pmap_checkpoint': pmap, 'pmap_fault_control': pmap_fault,
+              'arm_vm_checkpoint': arm_vm, 'arm_vm_fault_control': arm_vm_fault,
               'markers': {marker: marker in text for marker in [
                   'ENTRY MMU-OFF', 'STACKS NEXT', 'TABLES READY', 'MMU ENABLE NEXT',
                   'BOOT EXCEPTION', 'ENTRY-CHECK PASS', 'RECOVERY REQUEST']}}
@@ -233,9 +235,35 @@ _start:
                     not fault_sctlr or not int(fault_sctlr.group(1), 16) & 1):
                     raise RuntimeError('final-VBAR relay failed the exact post-pmap BRK')
                 return
+        if arm_vm:
+            from a31_armvm import check_armvm_fields
+            fields = dict(re.findall(r'^([A-Z0-9_]+)=(0x[0-9a-f]+)$', text, re.M))
+            if not check_armvm_fields(fields):
+                raise RuntimeError('arm_vm_init quantitative allocation/preemption evidence invalid')
+            extra = ['C STAGE 14: early I/O page tables ready', 'EARLY-IO-TABLES-CHECK PASS',
+                     'C STAGE 25: late VM tables and globals verified', 'ARM-VM-TABLES-CHECK PASS',
+                     'C STAGE 15: arm_vm_init returned']
+            if not arm_vm_fault:
+                extra.append('ARM-VM-INIT-CHECK PASS')
+            required.extend(extra)
+            ordered[-1:-1] = extra
+            if arm_vm_fault:
+                from a31_reset_check import kernel_function
+                target, code = kernel_function(kernel.read_bytes(), b'_a31_armvm_control_trap')
+                if code[:4] != struct.pack('<I', 0xd4214660):
+                    raise RuntimeError('arm_vm_init-return fault symbol is not BRK #0xa33')
+                markers = ordered[:-1] + ['BOOT EXCEPTION', 'XNU_FAULT_ESR=0x00000000f2000a33',
+                                         'XNU_FAULT_ELR=' + f'0x{target:016x}']
+                positions = [text.find(marker) for marker in markers]
+                fault_sctlr = re.search(r'XNU_FAULT_SCTLR=0x([0-9a-f]+)', text)
+                if (any(p < 0 for p in positions) or positions != sorted(positions) or
+                    'ARM-VM-INIT-CHECK PASS' in text or 'ARM-VM-INIT-CHECK FAIL' in text or
+                    not fault_sctlr or not int(fault_sctlr.group(1), 16) & 1):
+                    raise RuntimeError('final-VBAR relay failed exact arm_vm_init-return BRK')
+                return
         positions = [text.find(marker) for marker in ordered]
         if (any(p < 0 for p in positions) or positions != sorted(positions) or
-                'REBASE-CHECK FAIL' in text or 'CPU-DATA-CHECK FAIL' in text or 'PLATFORM-CHECK FAIL' in text or 'CPU-BOOTSTRAP-CHECK FAIL' in text or 'CPU-INIT-CHECK FAIL' in text or 'VM-TABLES-CHECK FAIL' in text or 'PMAP-BOOTSTRAP-CHECK FAIL' in text):
+                'REBASE-CHECK FAIL' in text or 'CPU-DATA-CHECK FAIL' in text or 'PLATFORM-CHECK FAIL' in text or 'CPU-BOOTSTRAP-CHECK FAIL' in text or 'CPU-INIT-CHECK FAIL' in text or 'VM-TABLES-CHECK FAIL' in text or 'PMAP-BOOTSTRAP-CHECK FAIL' in text or 'ARM-VM-INIT-CHECK FAIL' in text):
             raise RuntimeError('post-rebase checkpoint missing, failed or out of order')
     sctlr = re.search(r'XNU_SCTLR_EL1=0x([0-9a-f]+)', text)
     if trap or post or c_entry or prologue:
@@ -269,11 +297,15 @@ if __name__ == '__main__':
     parser.add_argument('--vm-fault', action='store_true')
     parser.add_argument('--pmap', action='store_true')
     parser.add_argument('--pmap-fault', action='store_true')
+    parser.add_argument('--arm-vm', action='store_true')
+    parser.add_argument('--arm-vm-fault', action='store_true')
     options = parser.parse_args()
-    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime, options.vm, options.pmap]) > 1:
+    if sum([options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime, options.vm, options.pmap, options.arm_vm]) > 1:
         parser.error('select only one checkpoint')
     if options.vm_fault and not options.vm:
         parser.error('--vm-fault requires --vm')
     if options.pmap_fault and not options.pmap:
         parser.error('--pmap-fault requires --pmap')
-    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime, options.vm, options.vm_fault, options.pmap, options.pmap_fault)
+    if options.arm_vm_fault and not options.arm_vm:
+        parser.error('--arm-vm-fault requires --arm-vm')
+    run(options.kernel.resolve(), options.out.resolve(), options.pre_mmu_trap, options.post_mmu_trap, options.c_entry_trap, options.c_prologue_trap, options.post_rebase, options.cpu_data, options.platform, options.cpu_bootstrap, options.runtime, options.vm, options.vm_fault, options.pmap, options.pmap_fault, options.arm_vm, options.arm_vm_fault)

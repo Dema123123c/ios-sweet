@@ -60,6 +60,24 @@ class A31LogTests(unittest.TestCase):
                 b'[A31-XNU] C STAGE 13: pmap_bootstrap done\n[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS\n')
         pmap_good = vm_good.replace(b'[A31-XNU] RECOVERY REQUEST\n', pmap + b'[A31-XNU] RECOVERY REQUEST\n')
         self.assertEqual(inspect(BEGIN + pmap_good, BUILD)['status'], 'xnu_pmap_bootstrap_pass')
+        from test_a31_armvm import valid_fields
+        arm_fields = valid_fields()
+        arm_fields['XNU_PMAP_ALLOC_END'] = '0x0000000102700000'
+        arm_fields['XNU_ARMVM_ALLOC_BEGIN'] = '0x0000000102700000'
+        arm_fields['XNU_ARMVM_ALLOC_END'] = arm_fields['XNU_ARMVM_FIRST_AVAIL'] = '0x000000010272c000'
+        armvm = (b'[A31-XNU] C STAGE 14: early I/O page tables ready\n[A31-XNU] EARLY-IO-TABLES-CHECK PASS\n' +
+                 b''.join((key + '=' + value + '\n').encode() for key, value in arm_fields.items()
+                          if key.startswith('XNU_ARMVM_')) +
+                 b'[A31-XNU] C STAGE 25: late VM tables and globals verified\n[A31-XNU] ARM-VM-TABLES-CHECK PASS\n'
+                 b'[A31-XNU] C STAGE 15: arm_vm_init returned\n[A31-XNU] ARM-VM-INIT-CHECK PASS\n')
+        armvm_good = pmap_good.replace(b'[A31-XNU] RECOVERY REQUEST\n', armvm + b'[A31-XNU] RECOVERY REQUEST\n')
+        self.assertEqual(inspect(BEGIN + armvm_good, BUILD)['status'], 'xnu_arm_vm_init_pass')
+        for bad in [pmap_good, armvm + pmap_good,
+                    armvm_good.replace(b'[A31-XNU] C STAGE 15: arm_vm_init returned\n', b''),
+                    armvm_good.replace(b'XNU_ARMVM_PREEMPT_AFTER=0x0000000000000000', b'XNU_ARMVM_PREEMPT_AFTER=0x0000000000000001'),
+                    armvm_good + b'[A31-XNU] ARM-VM-INIT-CHECK FAIL\n',
+                    armvm_good + b'[A31-XNU] BOOT EXCEPTION\n']:
+            self.assertFalse(inspect(BEGIN + bad, BUILD)['sessions'][0]['xnu_arm_vm_init_pass'])
         for bad in [vm_good, pmap + vm_good,
                     pmap_good.replace(b'[A31-XNU] TABLE-POINTERS-CHECK PASS\n', b''),
                     pmap_good.replace(b'0x0000000102700000', b'0x0000000140000000'),

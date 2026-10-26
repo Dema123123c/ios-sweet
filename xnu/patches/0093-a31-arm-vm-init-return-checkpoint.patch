@@ -1,0 +1,340 @@
+A31: bounded late page tables, low globals/preemption balance and arm_vm_init return checkpoint.
+
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -41,6 +41,14 @@
+ #include <machine/atomic.h>
+ #include <arm64/proc_reg.h>
+ #include <arm64/lowglobals.h>
++#if defined(A31)
++#include <arm64/a31_pmap_bounds.h>
++#include <arm64/a31_armvm_check.h>
++#include <kern/ast.h>
++#if !defined(ARM_LARGE_MEMORY) || XNU_MONITOR || KASAN || defined(KERNEL_INTEGRITY_KTRR) || defined(KERNEL_INTEGRITY_CTRR)
++#error A31 arm_vm_init checkpoint requires the audited non-PPL large-memory configuration
++#endif
++#endif
+ #include <arm64/sweet_early.h>
+ #include <arm/cpu_data_internal.h>
+ #include <arm/misc_protos.h>
+@@ -322,6 +330,9 @@
+ SECURITY_READ_ONLY_LATE(static vm_offset_t) auxkc_mh, auxkc_base, auxkc_right_above;
+ 
+ vm_offset_t alloc_ptpage(boolean_t map_static);
++#if defined(A31)
++static unsigned int a31_late_active, a31_late_pt_pages;
++#endif
+ SECURITY_READ_ONLY_LATE(vm_offset_t) ropage_next;
+ extern int dtrace_keep_kernel_symbols(void);
+ 
+@@ -465,6 +476,14 @@
+ 
+ 		return vaddr;
+ 	} else {
++#if defined(A31)
++		if (gPhysBase != 0x100000000ULL || (avail_start & (ARM_PGBYTES - 1)) ||
++		    !a31_xnu_pmap_bounds(mem_size, avail_start, avail_start + ARM_PGBYTES, gPhysBase + mem_size))
++			panic("A31 page-table allocation outside managed RAM");
++		if (a31_late_active && a31_late_pt_pages >= 32)
++			panic("A31 late page-table allocation budget exceeded");
++		if (a31_late_active) ++a31_late_pt_pages;
++#endif
+ 		vaddr = phystokv(avail_start);
+ 		avail_start += ARM_PGBYTES;
+ 
+@@ -1883,6 +1902,38 @@
+ }
+ #endif
+ 
++#if defined(A31)
++static unsigned int
++a31_check_empty_range(vm_map_address_t start, vm_map_address_t end, pmap_paddr_t first)
++{
++	unsigned int pages = 0;
++	if (start < gVirtBase || start >= end || end > VM_MAX_KERNEL_ADDRESS)
++		panic("A31 late virtual range invalid");
++	for (vm_map_address_t va = start; va < end;) {
++		tt_entry_t l1 = cpu_tte[(va & ARM_TT_L1_INDEX_MASK) >> ARM_TT_L1_SHIFT];
++		if ((l1 & (ARM_TTE_VALID | ARM_TTE_TYPE_MASK)) != (ARM_TTE_VALID | ARM_TTE_TYPE_TABLE))
++			panic("A31 late L1 missing");
++		pmap_paddr_t l2_pa = l1 & ARM_TTE_TABLE_MASK;
++		if (!a31_xnu_pmap_bounds(mem_size, l2_pa, l2_pa + ARM_PGBYTES, gPhysBase + mem_size))
++			panic("A31 late L2 outside RAM");
++		tt_entry_t *l2 = (tt_entry_t *)phystokv(l2_pa);
++		tt_entry_t entry = l2[(va & ARM_TT_L2_INDEX_MASK) >> ARM_TT_L2_SHIFT];
++		if ((entry & (ARM_TTE_VALID | ARM_TTE_TYPE_MASK | ARM_DYNAMIC_TABLE_XN)) !=
++		    (ARM_TTE_VALID | ARM_TTE_TYPE_TABLE | ARM_DYNAMIC_TABLE_XN))
++			panic("A31 late L3 type/NX mismatch");
++		pmap_paddr_t page_pa = entry & ARM_TTE_TABLE_MASK;
++		if (page_pa < first || !a31_xnu_pmap_bounds(mem_size, page_pa, page_pa + ARM_PGBYTES, avail_start) ||
++		    !a31_xnu_empty_l3((const uint64_t *)phystokv(page_pa), ARM_PGBYTES))
++			panic("A31 late L3 not empty or outside RAM");
++		if (++pages > 32) panic("A31 late leaf count invalid");
++		vm_map_address_t next = (va & ~ARM_TT_L2_OFFMASK) + ARM_TT_L2_SIZE;
++		if (next <= va) panic("A31 late VA overflow");
++		va = next;
++	}
++	return pages;
++}
++#endif
++
+ void
+ arm_vm_init(uint64_t memory_size, boot_args * args)
+ {
+@@ -2340,6 +2391,15 @@
+ 	pmap_bootstrap(dynamic_memory_begin);
+ 	sweet_early_mark(13, "pmap_bootstrap done");
+ 
++#if defined(A31)
++	const pmap_paddr_t a31_late_begin = avail_start;
++	const int a31_preempt_before = get_preemption_level();
++	if (a31_preempt_before < 0 || a31_preempt_before > 1024 || *ast_pending() != AST_NONE ||
++	    args->Video.v_baseAddr || args->Video.v_height || args->Video.v_rowBytes)
++		panic("A31 late VM boot policy mismatch");
++	a31_late_active = 1;
++	a31_late_pt_pages = 0;
++#endif
+ 	disable_preemption();
+ 
+ 	/*
+@@ -2355,6 +2415,12 @@
+ 	va_l1_end += round_page(args->Video.v_height * args->Video.v_rowBytes);
+ 	va_l1_end = (va_l1_end + 0x00000000007FFFFFULL) & 0xFFFFFFFFFF800000ULL;
+ 
++#if defined(A31)
++	const vm_map_address_t a31_io_start = va_l1, a31_io_end = va_l1_end;
++	if (a31_io_start < gVirtBase || a31_io_start >= a31_io_end ||
++	    a31_io_end - a31_io_start > 0x8000000ULL || a31_io_end >= A31_ARMVM_COPY_START)
++		panic("A31 early I/O VA policy mismatch");
++#endif
+ 	cpu_l1_tte = cpu_tte + ((va_l1 & ARM_TT_L1_INDEX_MASK) >> ARM_TT_L1_SHIFT);
+ 
+ 	while (va_l1 < va_l1_end) {
+@@ -2367,12 +2433,19 @@
+ 			va_l2_end = MIN((va_l1 & ~ARM_TT_L1_OFFMASK) + ARM_TT_L1_SIZE, va_l1_end);
+ 		}
+ 
++#if defined(A31)
++		if ((*cpu_l1_tte & (ARM_TTE_VALID | ARM_TTE_TYPE_MASK)) != (ARM_TTE_VALID | ARM_TTE_TYPE_TABLE))
++			panic("A31 late parent L1 missing");
++#endif
+ 		cpu_l2_tte = ((tt_entry_t *) phystokv(((*cpu_l1_tte) & ARM_TTE_TABLE_MASK))) + ((va_l2 & ARM_TT_L2_INDEX_MASK) >> ARM_TT_L2_SHIFT);
+ 
+ 		while (va_l2 < va_l2_end) {
+ 			pt_entry_t *    ptp;
+ 			pmap_paddr_t    ptp_phys;
+ 
++#if defined(A31)
++			if (*cpu_l2_tte != ARM_TTE_EMPTY) panic("A31 late L2 slot occupied");
++#endif
+ 			/* Allocate a page and setup L3 Table TTE in L2 */
+ 			ptp = (pt_entry_t *) alloc_ptpage(FALSE);
+ 			ptp_phys = (pmap_paddr_t)kvtophys((vm_offset_t)ptp);
+@@ -2389,6 +2462,9 @@
+ 		va_l1 = va_l2_end;
+ 		cpu_l1_tte++;
+ 	}
++#if defined(A31)
++	const unsigned int a31_io_pages = a31_check_empty_range(a31_io_start, a31_io_end, a31_late_begin);
++#endif
+ 	sweet_early_mark(14, "early I/O page tables ready");
+ 
+ #if defined(KERNEL_INTEGRITY_KTRR) || defined(KERNEL_INTEGRITY_CTRR)
+@@ -2417,6 +2493,12 @@
+ 	 */
+ 	va_l1 = (VM_MAX_KERNEL_ADDRESS & CPUWINDOWS_BASE_MASK) - PE_EARLY_BOOT_VA;
+ 	va_l1_end = VM_MAX_KERNEL_ADDRESS;
++#if defined(A31)
++	_Static_assert(VM_MAX_KERNEL_ADDRESS == A31_ARMVM_MAX_VA, "A31 kernel VA policy changed");
++	_Static_assert(PE_EARLY_BOOT_VA == 0x4000, "A31 early debug window size changed");
++	const vm_map_address_t a31_copy_start = va_l1, a31_copy_end = va_l1_end;
++	if (a31_copy_start != A31_ARMVM_COPY_START) panic("A31 copy window VA policy mismatch");
++#endif
+ 
+ 	cpu_l1_tte = cpu_tte + ((va_l1 & ARM_TT_L1_INDEX_MASK) >> ARM_TT_L1_SHIFT);
+ 
+@@ -2430,12 +2512,19 @@
+ 			va_l2_end = MIN((va_l1 & ~ARM_TT_L1_OFFMASK) + ARM_TT_L1_SIZE, va_l1_end);
+ 		}
+ 
++#if defined(A31)
++		if ((*cpu_l1_tte & (ARM_TTE_VALID | ARM_TTE_TYPE_MASK)) != (ARM_TTE_VALID | ARM_TTE_TYPE_TABLE))
++			panic("A31 late parent L1 missing");
++#endif
+ 		cpu_l2_tte = ((tt_entry_t *) phystokv(((*cpu_l1_tte) & ARM_TTE_TABLE_MASK))) + ((va_l2 & ARM_TT_L2_INDEX_MASK) >> ARM_TT_L2_SHIFT);
+ 
+ 		while (va_l2 < va_l2_end) {
+ 			pt_entry_t *    ptp;
+ 			pmap_paddr_t    ptp_phys;
+ 
++#if defined(A31)
++			if (*cpu_l2_tte != ARM_TTE_EMPTY) panic("A31 late L2 slot occupied");
++#endif
+ 			/* Allocate a page and setup L3 Table TTE in L2 */
+ 			ptp = (pt_entry_t *) alloc_ptpage(FALSE);
+ 			ptp_phys = (pmap_paddr_t)kvtophys((vm_offset_t)ptp);
+@@ -2465,7 +2554,25 @@
+ #endif
+ 	first_avail = avail_start;
+ 	patch_low_glo_static_region(args->topOfKernelData, avail_start - args->topOfKernelData);
++#if defined(A31)
++	const unsigned int a31_copy_pages = a31_check_empty_range(a31_copy_start, a31_copy_end, a31_late_begin);
++	if (!a31_xnu_pmap_bounds(mem_size, a31_late_begin, avail_start, avail_end) ||
++	    first_avail != avail_start || lowGlo.lgStaticAddr != args->topOfKernelData ||
++	    lowGlo.lgStaticSize != avail_start - args->topOfKernelData ||
++	    lowGlo.lgPhysMapBase != physmap_base || lowGlo.lgPhysMapEnd != physmap_end ||
++	    lowGlo.lgVmFirstPhys != gPhysBase || lowGlo.lgVmLastPhys != trunc_page(avail_end) ||
++	    *ast_pending() != AST_NONE)
++		panic("A31 late VM globals/bounds mismatch");
++#endif
+ 	enable_preemption();
++#if defined(A31)
++	if (get_preemption_level() != a31_preempt_before) panic("A31 preemption balance mismatch");
++	struct a31_armvm_report report = {mem_size, a31_late_begin, avail_start, avail_end,
++	    a31_late_pt_pages, a31_io_pages + a31_copy_pages,
++	    a31_preempt_before, get_preemption_level(), a31_io_start, a31_io_end,
++	    a31_copy_start, a31_copy_end, first_avail, *ast_pending()};
++	a31_armvm_checkpoint(&report);
++#endif
+ }
+ 
+ /*
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -1125,3 +1125,7 @@
+ #if defined(A31)
+ #include "a31_pmap_trap.inc"
+ #endif
++
++#if defined(A31)
++#include "a31_armvm_trap.inc"
++#endif
+--- a/osfmk/arm64/sweet_early.c
++++ b/osfmk/arm64/sweet_early.c
+@@ -148,12 +148,14 @@
+ 
+ #include <arm64/a31_final_io.h>
+ #include <arm64/a31_pmap_bounds.h>
++#include <arm64/a31_armvm_check.h>
+ #include <arm64/proc_reg.h>
+ #include <pexpert/pexpert.h>
+ extern unsigned char a31_final_vectors[];
+ extern void a31_vm_control_trap(void) __attribute__((noreturn));
+ extern void a31_pmap_control_trap(void) __attribute__((noreturn));
+-/* Stop after pmap_bootstrap returns, before further arm_vm_init allocations. */
++extern void a31_armvm_control_trap(void) __attribute__((noreturn));
++/* Stop immediately after arm_vm_init returns, before debug/serial initialization. */
+ static unsigned int a31_panicking;
+ static unsigned int a31_entry_seen;
+ static unsigned int a31_vm_fault_control;
+@@ -315,7 +317,10 @@
+     if ((stage == 11 && a31_entry_seen == 12) ||
+         (stage == 12 && a31_entry_seen == 13) ||
+         (stage == 24 && a31_entry_seen == 14) ||
+-        (stage == 13 && a31_entry_seen == 15)) {
++        (stage == 13 && a31_entry_seen == 15) ||
++        (stage == 14 && a31_entry_seen == 16) ||
++        (stage == 25 && a31_entry_seen == 17) ||
++        (stage == 15 && a31_entry_seen == 18)) {
+         if (current_el != 4 || !(sctlr & 1) || frequency != 13000000 ||
+             !a31_translation_matches(A31_FINAL_LOG_VA, 0x4d05f000) ||
+             !a31_translation_matches(A31_FINAL_SRAM_VA, 0x10dc00) ||
+@@ -326,12 +331,20 @@
+         if (stage == 13) {
+             if (a31_vm_fault_control == 2) a31_pmap_control_trap();
+             a31_string("[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS\n");
++            a31_entry_seen = 16;
++            return;
++        }
++        if (stage == 15) {
++            if (a31_vm_fault_control == 3) a31_armvm_control_trap();
++            a31_string("[A31-XNU] ARM-VM-INIT-CHECK PASS\n");
+             a31_return();
+         }
+         ++a31_entry_seen;
+         a31_string(stage == 11 ? "[A31-XNU] TABLE-POINTERS-CHECK PASS\n" :
+                    stage == 12 ? "[A31-XNU] PMAP-ENTER-CHECK PASS\n" :
+-                                 "[A31-XNU] PMAP-STRUCTURES-CHECK PASS\n");
++                   stage == 24 ? "[A31-XNU] PMAP-STRUCTURES-CHECK PASS\n" :
++                   stage == 14 ? "[A31-XNU] EARLY-IO-TABLES-CHECK PASS\n" :
++                                 "[A31-XNU] ARM-VM-TABLES-CHECK PASS\n");
+         return;
+     } else {
+         a31_string("[A31-XNU] ENTRY-CHECK FAIL\n");
+@@ -342,6 +355,7 @@
+         a31_string("[A31-XNU] CPU-INIT-CHECK FAIL\n");
+         a31_string("[A31-XNU] VM-TABLES-CHECK FAIL\n");
+         a31_string("[A31-XNU] PMAP-BOOTSTRAP-CHECK FAIL\n");
++        a31_string("[A31-XNU] ARM-VM-INIT-CHECK FAIL\n");
+     }
+     a31_return();
+ }
+@@ -362,6 +376,34 @@
+     a31_hex("XNU_PMAP_ROOT=", root);
+     a31_hex("XNU_PMAP_MAX_ASIDS=", asids);
+     sweet_early_mark(24, "pmap structures initialized");
++}
++
++void
++a31_armvm_checkpoint(const struct a31_armvm_report *r)
++{
++    if (!r || !a31_xnu_pmap_bounds(r->memory_bytes, r->begin, r->end, r->limit) ||
++        !r->pt_pages || r->pt_pages > 32 || !r->leaf_pages || r->leaf_pages > r->pt_pages ||
++        r->end - r->begin != r->pt_pages * 0x4000 || r->first_avail != r->end ||
++        r->preempt_before != r->preempt_after || r->preempt_after > 1024 || r->pending_ast ||
++        r->io_start >= r->io_end || r->io_end - r->io_start > 0x8000000ULL ||
++        r->copy_start != A31_ARMVM_COPY_START || r->copy_end != A31_ARMVM_MAX_VA) {
++        a31_string("[A31-XNU] ARM-VM-INIT-CHECK FAIL\n");
++        a31_return();
++    }
++    a31_hex("XNU_ARMVM_ALLOC_BEGIN=", r->begin);
++    a31_hex("XNU_ARMVM_ALLOC_END=", r->end);
++    a31_hex("XNU_ARMVM_ALLOC_LIMIT=", r->limit);
++    a31_hex("XNU_ARMVM_PT_PAGES=", r->pt_pages);
++    a31_hex("XNU_ARMVM_LEAF_PAGES=", r->leaf_pages);
++    a31_hex("XNU_ARMVM_PREEMPT_BEFORE=", r->preempt_before);
++    a31_hex("XNU_ARMVM_PREEMPT_AFTER=", r->preempt_after);
++    a31_hex("XNU_ARMVM_PENDING_AST=", r->pending_ast);
++    a31_hex("XNU_ARMVM_FIRST_AVAIL=", r->first_avail);
++    a31_hex("XNU_ARMVM_IO_START=", r->io_start);
++    a31_hex("XNU_ARMVM_IO_END=", r->io_end);
++    a31_hex("XNU_ARMVM_COPY_START=", r->copy_start);
++    a31_hex("XNU_ARMVM_COPY_END=", r->copy_end);
++    sweet_early_mark(25, "late VM tables and globals verified");
+ }
+ 
+ void
+--- /dev/null
++++ b/osfmk/arm64/a31_armvm_check.h
+@@ -0,0 +1,22 @@
++#ifndef A31_XNU_ARMVM_CHECK_H
++#define A31_XNU_ARMVM_CHECK_H
++#include <stdint.h>
++#include <stddef.h>
++
++struct a31_armvm_report {
++    uint64_t memory_bytes, begin, end, limit, pt_pages, leaf_pages;
++    uint64_t preempt_before, preempt_after, io_start, io_end, copy_start, copy_end;
++    uint64_t first_avail, pending_ast;
++};
++#define A31_ARMVM_MAX_VA UINT64_C(0xfffffe8fffffffff)
++#define A31_ARMVM_COPY_START UINT64_C(0xfffffe8fffdfc000)
++extern void a31_armvm_checkpoint(const struct a31_armvm_report *report);
++
++static inline int
++a31_xnu_empty_l3(const uint64_t *page, size_t bytes)
++{
++    if (!page || ((uintptr_t)page & 0x3fff) || bytes != 0x4000) return 0;
++    for (size_t i = 0; i < 2048; ++i) if (page[i]) return 0;
++    return 1;
++}
++#endif
+--- /dev/null
++++ b/osfmk/arm64/a31_armvm_trap.inc
+@@ -0,0 +1,6 @@
++    .text
++    .balign 4
++    .globl EXT(a31_armvm_control_trap)
++LEXT(a31_armvm_control_trap)
++    brk #0xa33
++    b EXT(a31_armvm_control_trap)

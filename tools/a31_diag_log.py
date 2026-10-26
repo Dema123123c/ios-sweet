@@ -6,6 +6,7 @@ import re
 import struct
 import subprocess
 from pathlib import Path
+from a31_armvm import check_armvm_fields
 
 
 def chronological(data):
@@ -29,7 +30,7 @@ def inspect(data, expected_build):
         complete = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', '[A31-DIAG] PASS'])
         status = 'fail' if failure else 'pass' if complete else 'incomplete'
-        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|CPU-INIT-CHECK FAIL|VM-TABLES-CHECK FAIL|PMAP-BOOTSTRAP-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
+        entry_failure = re.search(r'^\[A31-XNU\] (?:ENTRY-CHECK FAIL|REBASE-CHECK FAIL|CPU-DATA-CHECK FAIL|PLATFORM-CHECK FAIL|CPU-BOOTSTRAP-CHECK FAIL|CPU-INIT-CHECK FAIL|VM-TABLES-CHECK FAIL|PMAP-BOOTSTRAP-CHECK FAIL|ARM-VM-INIT-CHECK FAIL|PANIC:|RECOVERY FAILED|BOOT EXCEPTION|BOOT RECOVERY FAILED)', session, re.M)
         entry_pass = all(re.search(r'^' + re.escape(line) + r'$', session, re.M) for line in [
             'MMU16K PASS', 'VTIMER PASS', 'PAYLOAD COPY/READBACK PASS', '[A31-DIAG] XNU HANDOFF',
             '[A31-XNU] ENTRY MMU-OFF v1', '[A31-XNU] ENTRY-CHECK PASS', '[A31-XNU] RECOVERY REQUEST'])
@@ -119,8 +120,20 @@ def inspect(data, expected_build):
                      0x100000000 <= begin < end <= limit <= 0x100000000 + memory and
                      not end & 0x3fff and root_pa != 0 and not root_pa & 0x3fff and
                      0 < asids <= 65536 and not asids & 63)
+        armvm_markers = ['[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS',
+                         '[A31-XNU] C STAGE 14: early I/O page tables ready',
+                         '[A31-XNU] EARLY-IO-TABLES-CHECK PASS',
+                         '[A31-XNU] C STAGE 25: late VM tables and globals verified',
+                         '[A31-XNU] ARM-VM-TABLES-CHECK PASS',
+                         '[A31-XNU] C STAGE 15: arm_vm_init returned',
+                         '[A31-XNU] ARM-VM-INIT-CHECK PASS', '[A31-XNU] RECOVERY REQUEST']
+        armvm_positions = [session.find(line + '\n') for line in armvm_markers]
+        armvm_pass = (pmap_pass and all(p >= 0 for p in armvm_positions) and
+                      armvm_positions == sorted(armvm_positions) and check_armvm_fields(fields))
         if entry_failure:
             status = 'fail'
+        elif armvm_pass:
+            status = 'xnu_arm_vm_init_pass'
         elif pmap_pass:
             status = 'xnu_pmap_bootstrap_pass'
         elif vm_pass:
@@ -152,6 +165,7 @@ def inspect(data, expected_build):
                       'xnu_cpu_init_pass': runtime_pass,
                       'xnu_vm_tables_pass': vm_pass,
                       'xnu_pmap_bootstrap_pass': pmap_pass,
+                      'xnu_arm_vm_init_pass': armvm_pass,
                       'xnu_entry_failure': entry_failure.group(0) if entry_failure else None,
                       'payload_prepared': bool(re.search(r'^PAYLOAD COPY/READBACK PASS$', session, re.M)),
                       'kernel_jump_disabled': bool(re.search(r'^XNU JUMP DISABLED$', session, re.M))})

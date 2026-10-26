@@ -25,6 +25,7 @@ on:
       - "xnu/patches/**"
       - "shim/a31/xnu_entry_io*"
       - "shim/a31/xnu_pmap*"
+      - "shim/a31/xnu_armvm*"
       - "tools/a31_iig_cache.py"
       - "tools/test_a31_xnu.py"
       - ".github/workflows/xnu.yml"
@@ -82,6 +83,8 @@ jobs:
           /tmp/a31-final-io-test
           clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_pmap_bounds_test.c -o /tmp/a31-pmap-bounds-test
           /tmp/a31-pmap-bounds-test
+          clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_armvm_check_test.c -o /tmp/a31-armvm-check-test
+          /tmp/a31-armvm-check-test
 
       - name: Fetch build script
         run: |
@@ -150,6 +153,9 @@ jobs:
           pmap_trap, pmap_trap_code = kernel_function(data, b'_a31_pmap_control_trap')
           assert pmap_trap_code[:4] == bytes.fromhex('404621d4')
           result['pmap_code'] = {'trap_va': hex(pmap_trap), 'trap_opcode': '0xd4214640'}
+          armvm_trap, armvm_trap_code = kernel_function(data, b'_a31_armvm_control_trap')
+          assert armvm_trap_code[:4] == bytes.fromhex('604621d4')
+          result['arm_vm_code'] = {'trap_va': hex(armvm_trap), 'trap_opcode': '0xd4214660'}
           for marker in (b'[A31-XNU] ENTRY MMU-OFF v1', b'[A31-XNU] ENTRY-CHECK PASS',
                          b'[A31-XNU] RECOVERY REQUEST', b'XNU_SCTLR_EL1=',
                          b'[A31-XNU] BOOT EXCEPTION', b'[A31-XNU] STACKS NEXT',
@@ -161,11 +167,13 @@ jobs:
                          b'[A31-XNU] PLATFORM-CHECK PASS', b'[A31-XNU] CPU-BOOTSTRAP-CHECK PASS', b'[A31-XNU] CPU-INIT-CHECK PASS', b'[A31-XNU] VM-MAPS-CHECK PASS',
                          b'[A31-XNU] FINAL-IO-ALIASES PASS', b'[A31-XNU] VM-TABLES-CHECK PASS',
                          b'[A31-XNU] TABLE-POINTERS-CHECK PASS', b'[A31-XNU] PMAP-ENTER-CHECK PASS',
-                         b'[A31-XNU] PMAP-STRUCTURES-CHECK PASS', b'[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS'):
+                         b'[A31-XNU] PMAP-STRUCTURES-CHECK PASS', b'[A31-XNU] PMAP-BOOTSTRAP-CHECK PASS',
+                         b'[A31-XNU] EARLY-IO-TABLES-CHECK PASS', b'[A31-XNU] ARM-VM-TABLES-CHECK PASS',
+                         b'[A31-XNU] ARM-VM-INIT-CHECK PASS'):
               if marker not in data:
                   raise SystemExit('A31 entry-check code missing from linked kernel')
-          result.update(source=os.environ['GITHUB_SHA'], kind='A31 XNU pmap-bootstrap checkpoint only',
-                        stops_before='post-pmap preemption/page-table expansion, drivers and userland',
+          result.update(source=os.environ['GITHUB_SHA'], kind='A31 XNU arm-vm-init-return checkpoint only',
+                        stops_before='post-arm_vm_init debug/serial, later VM startup, drivers and userland',
                         native_execution_verified=False)
           Path('out').mkdir(exist_ok=True)
           Path('out/a31-entry-check.json').write_text(json.dumps(result, indent=2) + '\n')

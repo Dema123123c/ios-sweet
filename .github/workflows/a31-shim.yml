@@ -40,6 +40,8 @@ jobs:
           research/a31-diag/xnu-io-test
           clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_pmap_bounds_test.c -o research/a31-diag/pmap-bounds-test
           research/a31-diag/pmap-bounds-test
+          clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_armvm_check_test.c -o research/a31-diag/armvm-check-test
+          research/a31-diag/armvm-check-test
           clang -std=gnu11 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined shim/a31/xnu_final_io_test.c -o research/a31-diag/final-io-test
           research/a31-diag/final-io-test
       - name: A31 Python format and log checks

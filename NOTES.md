@@ -8,6 +8,22 @@ with a port of XNU. Scope and measured results are in `docs/A31.md`.
 
 ### Latest recovery state (supersedes pending-restore entries below)
 
+- V25 PREPARATION, 2026-10-26:0093 extends through remaining arm_vm_init
+  L3/heap directories, LowGlo update, balanced disable/enable_preemption and
+  caller stage15 return; stop before debug/serial and later VM startup.
+  Every alloc_ptpage now checks the observed RAM bounds before allocation;
+  late cap32 pages, never replace occupied L2 entries, walk both new ranges
+  and verify exact NX/table attributes and all2048 invalid L3 PTEs. Leaf PAs
+  must belong to newly allocated memory. Check LowGlo/first_avail and AST0.
+  Compiled policy probe: VM_MAXfffffe8fffffffff, copy_startfffffe8fffdfc000,
+  early-debug4000, L1size1000000000, L2size2000000. New BRK#a33 after actual
+  arm_vm_init return supplements existing #a31/#a32 controls; all FOUR QEMU
+  scenarios required before native write. New shared report validator checks
+  exact physical allocation/page counts, preemption balance and VA ranges.
+  81 Python tests PASS (host-clock C skipped locally), two actual kernel C
+  files and Darwin trap assembly compile;0093 reverse-apply check PASS.
+  Private research/a31-armvm-attempt. No V25 package/write; V24 still in TWRP.
+
 - FINAL V24 CHECKPOINT sealed and VERIFIED ON PC + PRIVATE GOOGLE DRIVE:
   workspace outputs/a31-v24-work-20261026/a31-v24-checkpoint.zip and
   G:/Мой диск/A31-Backups/2026-10-26/a31-v24-checkpoint.zip;
